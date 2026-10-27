@@ -20,9 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client files, such as a public one, can then run with a client's own setup received in a pack.
 
 ### Added
-- **Two explainer videos** in `docs/videos/`: installing and setting up (6 min), and publishing a
-  batch up to the dry run (6½ min). Captioned, with English subtitles beside each, and linked from
-  the docs index, the install guide and the operator guide.
+- **An explainer video** in `docs/videos/`: publishing a batch up to the dry run (6½ min).
+  Captioned, with English subtitles beside it, and linked from the docs index and the operator
+  guide.
 - **A voice prompt for the demo client** (`prompts/democlient/generation.v1.md`), so the example
   config's generator works out of the box and a new client's prompt has a model to start from.
 
