@@ -399,5 +399,8 @@ def test_load_voice_template_missing_names_both_places(
 ) -> None:
     monkeypatch.setattr(client_files, "CODE_ROOT", tmp_path / "code")
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(GeneratorError, match=r"input/acme/prompts/generation\.v9\.md or .*code"):
+    # Either separator: Windows prints the path with backslashes.
+    sep = r"[/\\]"
+    where = rf"input{sep}acme{sep}prompts{sep}generation\.v9\.md or .*code"
+    with pytest.raises(GeneratorError, match=where):
         load_voice_template("acme", "v9")
