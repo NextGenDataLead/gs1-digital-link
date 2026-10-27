@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.NextGenDataLead/wordpress",
+  "description": "Write WordPress posts, custom post types, ACF fields and media; WPML-aware translations.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/NextGenDataLead/gs1-digital-link",
+    "source": "github",
+    "subfolder": "mcps/wordpress"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@gs1-orchestrator/wordpress-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GS1_CLIENTS_FILE",
+          "description": "Path to clients.yml. Defaults to ./clients.yml. The file names the environment variable holding the WordPress application password \u2014 it never contains the password itself.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

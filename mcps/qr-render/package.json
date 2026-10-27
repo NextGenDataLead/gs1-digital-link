@@ -1,0 +1,31 @@
+{
+  "name": "@gs1-orchestrator/qr-render-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server that renders QR symbols for GS1 Digital Link URIs on demand. Built in Phase 5.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "qr-render-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "qrcode": "^1.5.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/qrcode": "^1.5.5",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "gs1-digital-link-orchestrator-mcps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP servers for the GS1 Digital Link Orchestrator (built in Phases 2 and 4).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NextGenDataLead/gs1-digital-link.git"
+  },
+  "workspaces": [
+    "mcps/gs1-nl",
+    "mcps/wordpress",
+    "mcps/qr-render"
+  ]
+}

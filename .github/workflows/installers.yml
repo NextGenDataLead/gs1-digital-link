@@ -1,0 +1,100 @@
+name: Installers
+
+# Runs the double-click scripts for real, on the two systems operators use. Nothing else does:
+# the test suite checks their text, not that cmd.exe or bash actually execute them. A fresh
+# runner is a fresh machine — no uv data folder, no record of one — so this is the first-install
+# path, then a second install that must find the same folder and change nothing in it.
+#
+# `start --help` runs the data-folder lookup and then `python -m ui --help`, which prints its
+# usage and exits — proving the start script hands the folder over without opening a window.
+
+on:
+  pull_request:
+    paths:
+      - install.command
+      - install.bat
+      - start.command
+      - start.bat
+      - lib/install_location.py
+      - lib/data_dir.py
+      - scripts/data_folder.py
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/installers.yml
+
+concurrency:
+  group: installers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: install.command and start.command
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: First install
+        run: ./install.command < /dev/null
+
+      - name: The data folder was created, seeded and recorded
+        run: |
+          folder="$HOME/GS1 Digital Link data"
+          test -f "$folder/clients.yml"
+          test "$(stat -f %Lp "$folder/.env")" = "600"
+          test "$(cat "$HOME/Library/Application Support/GS1 Digital Link/data-folder.txt")" = "$folder"
+
+      - name: A second install finds it and changes nothing
+        run: |
+          folder="$HOME/GS1 Digital Link data"
+          echo "edited" >> "$folder/clients.yml"
+          before="$(shasum "$folder/clients.yml" "$folder/.env")"
+          ./install.command < /dev/null
+          test "$before" = "$(shasum "$folder/clients.yml" "$folder/.env")"
+
+      - name: start.command hands the folder to the shell
+        run: |
+          ./start.command --help < /dev/null | tee start.log
+          grep -q "Data folder: $HOME/GS1 Digital Link data" start.log
+          grep -q "usage: ui" start.log
+
+  windows:
+    name: install.bat and start.bat
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: First install
+        shell: cmd
+        run: call install.bat < NUL
+
+      - name: The data folder was created, seeded and recorded
+        shell: pwsh
+        run: |
+          $folder = Join-Path $HOME "GS1 Digital Link data"
+          if (-not (Test-Path (Join-Path $folder "clients.yml"))) { throw "clients.yml not seeded" }
+          if (-not (Test-Path (Join-Path $folder ".env"))) { throw ".env not seeded" }
+          $pointer = Join-Path $env:APPDATA "GS1 Digital Link\data-folder.txt"
+          $recorded = (Get-Content $pointer -Raw).Trim()
+          if ($recorded -ne $folder) { throw "recorded '$recorded', expected '$folder'" }
+
+      - name: A second install finds it and changes nothing
+        shell: pwsh
+        run: |
+          $folder = Join-Path $HOME "GS1 Digital Link data"
+          Add-Content (Join-Path $folder "clients.yml") "edited"
+          $before = Get-FileHash (Join-Path $folder "clients.yml"), (Join-Path $folder ".env")
+          cmd /c "call install.bat < NUL"
+          if ($LASTEXITCODE -ne 0) { throw "second install failed" }
+          $after = Get-FileHash (Join-Path $folder "clients.yml"), (Join-Path $folder ".env")
+          if (($before.Hash -join ",") -ne ($after.Hash -join ",")) { throw "data changed" }
+
+      - name: start.bat hands the folder to the shell
+        shell: pwsh
+        run: |
+          $out = cmd /c "call start.bat --help < NUL" 2>&1 | Out-String
+          Write-Output $out
+          $folder = Join-Path $HOME "GS1 Digital Link data"
+          if ($out -notmatch [regex]::Escape("Data folder: $folder")) { throw "no data folder line" }
+          if ($out -notmatch "usage: ui") { throw "the shell did not start" }

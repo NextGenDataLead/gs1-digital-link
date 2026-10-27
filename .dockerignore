@@ -1,0 +1,36 @@
+# The image holds code only. An installation's data lives in the /data volume, and a credential
+# or a ledger baked into an image layer cannot be taken back out. tests/test_container.py checks
+# that every line in the first block is here.
+
+# --- data: never in the image ---
+.env
+.env.*
+!.env.example
+clients.yml
+clients.yml.*
+input/
+output/
+*.key
+*.pem
+*.p12
+credentials.json
+secrets.*
+
+# --- not needed to run the shell ---
+.git/
+.github/
+.venv/
+venv/
+node_modules/
+mcps/
+tests/
+docs/
+.claude/
+.agents/
+skills/
+**/__pycache__/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.DS_Store

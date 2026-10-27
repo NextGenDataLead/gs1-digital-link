@@ -1,0 +1,297 @@
+# clients.example.yml — copy to clients.yml and fill in.
+# clients.yml is gitignored. Never commit real credentials.
+# Secrets live in environment variables; this file points at them by name.
+
+version: 1
+
+defaults:
+  gs1:
+    environment: test               # test | production
+    api_version: v2                 # locked; endpoint prefix is /digitallinkv2/v2/
+    # Auth is OAuth2 client-credentials: the client mints a 1h JWT from the
+    # client_id/client_secret env vars below and sends it as a Bearer token.
+    identification_key_type: "Gtin" # enum in v2; always Gtin for our scope
+    digital_link_url_pattern: "https://id.gs1.org/01/{gtin14}"
+    resolver_settings:
+      use_gs1_resolver: true        # matches decision §3.1
+      resolver_domain_name: null    # only used when use_gs1_resolver: false
+    default_media_type: "text/html" # for HTML product-page targets
+    batch_size: 50                  # for bulk endpoint
+  wordpress:
+    post_type: page
+    post_status: publish
+    multilingual_plugin: none       # none | polylang | wpml
+    default_language: nl
+    languages: [nl]
+    image_handling: url_in_export   # url_in_export | local_folder | manual
+  qr:
+    formats: [svg, png]
+    size_mm: 20
+    error_correction: M
+    dpi: 300
+  flow:
+    on_change: prompt
+    on_missing_field: prompt
+    batch_size: 50
+
+clients:
+
+  # Example — Democlient: custom post type, Polylang, NL + FR
+  democlient:
+    display_name: "Democlient B.V."
+    enabled: true
+
+    gs1:
+      # accountNumber differs per environment — take the test value from the
+      # minted token's accountNumber claim; verify production against MyGS1.
+      account_number_test: "8712345000010"
+      account_number_production: "8712345000003"
+      # OAuth2 client credentials per environment (issued via MyGS1 / dev portal)
+      client_id_env_test: DEMOCLIENT_GS1_CLIENT_SANDBOX_ID
+      client_secret_env_test: DEMOCLIENT_GS1_CLIENT_SANDBOX_SECRET
+      client_id_env_production: DEMOCLIENT_GS1_CLIENT_ID
+      client_secret_env_production: DEMOCLIENT_GS1_CLIENT_SECRET
+
+    export:
+      # 'gdsn' = multi-sheet GS1 Data Source / GDSN datapool export (one worksheet
+      # per module, keyed on Gtin + TargetMarketCountryCode). 'flat' = single-sheet
+      # MyGS1 article list (see column_map/extras_columns). See IMPLEMENTATION_SPEC §3.
+      format: gdsn
+      path: "./input/democlient/process/uploads/GS1 export/export.xlsx"
+      # Markets in the order to consult them (highest priority first). Every market row
+      # carries every language, so which market *has* a value varies by product — the tool
+      # takes the first non-blank value per product/field/language walking this order.
+      # Replaced market_language {528:nl, 056:fr}, whose 1:1 constraint cost coverage and
+      # could not resolve products whose markets disagree. Languages come from
+      # wordpress.languages.
+      market_priority: ["528", "056", "276", "442"]   # NL, BE, DE, LU
+      # ProductRecord field → GDSN attribute source. `attribute` is the GDSN attribute
+      # number (e.g. "3297") or a path segment name (e.g. GpcCategoryCode). Discover
+      # these by running: python -m scripts.inspect_export "input/democlient/process/uploads/GS1 export/export.xlsx"
+      # `required: true` holds a SKU out of publishing entirely while the value is missing
+      # (edge E23) — in EVERY language, so a product is never half-published: a page built
+      # from an incomplete record still publishes and its QR still resolves, and it looks
+      # finished until someone reads it. A localised field must carry a value in each of
+      # `wordpress.languages`. The gap is reported per GTIN in the data-quality report, with
+      # the GDSN attribute to fill; it is fixed in MyGS1, never downstream.
+      #
+      # `required_group: NAME` is the either-or form: the group is satisfied when **at least
+      # one** member carries a value, so alternatives can be declared without making each one
+      # individually mandatory. `marketing_copy` below is the case it exists for — the content
+      # generator writes from attr 1083 *or* 1067 and needs only one of them, so neither is
+      # required alone but the pair is. Mutually exclusive with `required`.
+      #
+      # Both are optional and default off: a field left unmarked never blocks.
+      gdsn_map:
+        # 3301 Functional Name = the page title (big name). The clean functional name
+        # ("voegstrijker"), matching the live "Cable Organiser" style — NOT 3318, which
+        # carries material+colour noise ("Democlient Voegstrijker kunststof oranje"), and
+        # NOT 3297, which is DescriptionShort, an internal logistics string. Verified live
+        # 2026-07-17. No strip_prefix — 3301 has no brand prefix. See docs §4.1.
+        # DEFERRED to the generator: prefix/suffix with 3332 (Product variation) — blind
+        # concatenation produces duplicates ("Snoeischaar snoeischaar").
+        # translate: true — where the feed carries a name in one language and not another, the
+        # generator fills the gap by translating the sibling and REPORTS the value so it goes
+        # back into MyGS1. Opt-in per field: every fill costs producer tokens and puts more
+        # LLM-written text on the page. A field blank in EVERY language is never filled — there
+        # is nothing to derive from, so it stays a source finding (E23). §4.2.
+        product_name:      { sheet: TradeItemDescription,            attribute: "3301", localised: true, required: true, translate: true }
+        # 1083 TradeItemMarketingMessage. NOT the tagline — exhaustive search disproved
+        # that (34/36 live taglines match nothing here; 1083 is paragraph-length marketing
+        # copy). Kept parsed as a GENERATOR INPUT only; feeds no ACF slot (see acf_map).
+        # No max_length — the 120-char limit was the tagline slot's width, which 1083 no
+        # longer fills, so its value_too_long findings were measuring the wrong field.
+        # report_issues: false — a generator input; its blanks are the generator's future
+        # work, not today's source-fix queue. §4.2.
+        description_short: { sheet: MarketingInformation,            attribute: "1083", localised: true, report_issues: false, required_group: marketing_copy, translate: true }
+        # 1067 TradeItemFeatureBenefit = the ranked USP source (tagline + Eigenschappen) when
+        # present. multivalue: true joins every TradeItemFeatureBenefit[n] slot with a newline so
+        # the generator sees all of them (the feed spreads USPs across slots AND newline-separates
+        # within a slot); the generator splits on newlines to rank. report_issues: false — a
+        # generator input, its blanks are the generator's work (flagged there), not the source queue.
+        description_long:  { sheet: MarketingInformation,            attribute: "1067", localised: true, multivalue: true, report_issues: false, required_group: marketing_copy, translate: true }
+        brand:             { sheet: TradeItemDescription,            attribute: "3336", required: true }
+        net_content:       { sheet: TradeItemMeasurements,           attribute: "3510", with_unit: true, required: true }
+        gpc_brick_code:    { sheet: BrickGPCCommercialData,          attribute: GpcCategoryCode, required: true }
+        image_url:         { sheet: ReferencedFileDetailInformation, attribute: "2485", primary_file: true, required: true }
+      # Named pass-through attributes carried verbatim into ProductRecord. A `localised: true`
+      # extra keeps EVERY configured language, in ProductRecord.extras_localised; the rest are
+      # one flat value in ProductRecord.extras.
+      #
+      # One attribute, one field — enforced at load (lib/config._validate_unique_attributes).
+      # 3301 used to be declared here too, as `functional_name`, beside the `product_name` above.
+      # The same value arrived under two names, which nothing downstream could tell apart: the
+      # report asked for one MyGS1 paste twice, the coverage matrix carried two identical columns,
+      # and the template printed the product name under itself. Removed 2026-08-14 — `product_name`
+      # is the only reader of 3301, and the generator takes its title input from there.
+      gdsn_extras:
+        # No translate: logistics_name and marketing_name are in_matrix: false because nothing
+        # consumes them. Filling a language gap in a value no page reads is producer tokens
+        # spent on nothing.
+        logistics_name:    { sheet: TradeItemDescription, attribute: "3297", localised: true, in_matrix: false }
+        # 3318 = the old product_name source, kept as a pass-through now the title comes
+        # from 3301. Carried, not published: it holds the brand-prefix typos ("Demoklient",
+        # "Democlent"), which the report may check once its scope widens past published
+        # fields.
+        marketing_name:    { sheet: TradeItemDescription, attribute: "3318", localised: true, in_matrix: false }
+        # --- Content-generator inputs (see docs/clients/democlient-generator-spec.md) ---
+        # 3332 Product variation — the intelligent title suffix. Near-empty (4/127), so the
+        # generator's title step is a deterministic dedup rule, not LLM work. It is suffixed
+        # onto the title of every language, so it is translated where the feed has it in one
+        # language only — otherwise a French title ends in a Dutch word.
+        product_variation: { sheet: TradeItemDescription,   attribute: "3332", localised: true, translate: true }
+        # Dimensions (all 127/127) carry a MeasurementUnitCode ("MMT" = mm); with_unit keeps
+        # the code so the Technische-details assembler decodes it via lib/units like
+        # net_content. Feed both the deterministic spec line and the Eigenschappen prompt.
+        # required: true — a product without its dimensions is held (E23). Safe to arm because
+        # all 127 carry all three today, so nothing is held by turning it on; what it buys is
+        # that a future export losing one becomes a loud hold instead of a thin published page.
+        # `required` works on gdsn_extras since #101 — before that it was silently ignored here.
+        dim_height:        { sheet: TradeItemMeasurements,   attribute: "3498", with_unit: true, required: true }
+        dim_width:         { sheet: TradeItemMeasurements,   attribute: "3520", with_unit: true, required: true }
+        dim_depth:         { sheet: TradeItemMeasurements,   attribute: "3492", with_unit: true, required: true }
+        # Material (75/127) is language-agnostic (Information[0]/Material[n]/Value, no
+        # LanguageCode pair) so it is a scalar, matched by the path segment "Material", not a
+        # number. Watch for the junk value "zzzanders" — the generator treats it as absent, and
+        # does so per slot, so "kunststof, zzzanders" is read as "kunststof".
+        # multivalue: true because a product can be made of more than one: the sheet repeats
+        # Material[0..2], all three labelled Material (4.012), and without the flag slots 1 and 2
+        # were silently discarded. A language-agnostic source joins its slots with ", " (not the
+        # newline used for 1067) because this value renders verbatim in Technische details.
+        # translate: true because it renders on EVERY language's page, so a French page otherwise
+        # reads "Matériau: kunststof". Note the asymmetry with the fields above: GS1 has no
+        # per-language slot for 4.012, so the translation cannot be put back into MyGS1 — it is a
+        # page fix, and the report says so on the row.
+        material:          { sheet: BrickGPCCommercialData,  attribute: "Material", multivalue: true, translate: true }
+
+    wordpress:
+      site_url: "https://www.democlient.nl"
+      username: "gs1-publisher"
+      app_password_env: DEMOCLIENT_WP_APP_PASS
+      post_type: democlient
+      multilingual_plugin: wpml
+      # WPML has no core REST route for language assignment or translation linking,
+      # so the site hosts a small helper (Code Snippet / mu-plugin). Its namespace is
+      # per-site — see docs/clients/democlient-page-adapter.md §7 for the source.
+      wpml_helper_path: "/wp-json/democlient/v1/translations"
+      languages: [nl, fr]
+      default_language: nl
+      image_handling: url_in_export
+      taxonomies:
+        democlient-categories:
+          map_from_column: "category"
+      # The Oxygen template renders from ACF, not post_content, so these fields *are* the
+      # page (docs/clients/democlient-page-adapter.md §3). Field names are the client's;
+      # they live here rather than in lib/.
+      #
+      # Wired to the GENERATOR's fields. The tagline (usps[0]) feeds both the sentence below
+      # the name (product_title) and the banner (product_header_video_text) — same value,
+      # verified live. product_description is the assembled three-part block (tagline +
+      # Eigenschappen + deterministic Technische details). merge_generated materialises these
+      # LocalisedText fields onto the record in run_plan; acf._resolve reads them by getattr and
+      # returns the per-language value (a gap omits the field so the page still publishes with
+      # its title/image). The values are ProductRecord field names, resolved by free getattr —
+      # reach into extras with extras.{name}. See docs §4.1/§4.2.
+      acf_map:
+        product_title: generated_tagline
+        product_header_video_text: generated_tagline
+        product_description: generated_description
+      slug_pattern: "p-{gtin}"
+      target_url_pattern: "{site_url}/{lang_segment}{post_type}/{slug}/"
+
+    template:
+      override_dir: templates/democlient
+      files:
+        nl: product.nl.html
+        fr: product.fr.html
+
+    gs1_links:
+      # One link per configured language is always emitted — GS1's CreateOrUpdate replaces
+      # the whole links array, so a language left out is a language deleted from the
+      # resolver. `default` applies to the default language's link only.
+      - link_type: "gs1:pip"
+        default: true
+        public: true
+        title_pattern: "{product_name}"
+
+    # Which GTINs a run may touch (not in the datasource export). EVERY GTIN in this
+    # file is processed — the tool reads no status columns and interprets no cell
+    # values. You prepare the file by DELETING the rows that should not run, applying
+    # whatever rule your business uses. Any other columns are ignored, so you can keep
+    # your own working notes beside the barcodes.
+    # Only the GTIN column is named here; label it whatever you like (Barcode, EAN...).
+    # Omit this whole block to plan every product in the export.
+    process_list:
+      # The ticked subset — what every run reads — beside every selection ever saved.
+      # What the operator sent is under process/uploads/, which is the other half of
+      # process/: what arrived, and what was chosen from it.
+      path: "./input/democlient/process/selection/selections.xlsx"
+      gtin_column: "Barcode"
+      # Optional. The column holding the address of a page this tool did NOT make — an older
+      # product page under its own slug. A `--only links` run then points the GS1 record at
+      # that page (the Dutch, default link — every scan resolves there) and at the French page
+      # it names as its translation, if it names one, instead of looking for `p-{gtin}`. Must be on `wordpress.site_url`'s host. Blank cells change nothing.
+      # target_url_column: "Link naar site"
+
+    # Content generator (tagline + Eigenschappen copy). Two producers share one results file and
+    # contract: the in-session `content-generator` skill (writes copy in-session, no API key)
+    # and the headless API backend (`python -m scripts.run_generate <id> --backend api`, which
+    # calls the Anthropic Messages API via lib/llm.py). `enabled: true` permits the API backend
+    # when the key env var is set; the in-session path works without it. `prompt_version` selects the
+    # frozen voice template at input/{id}/prompts/generation.{prompt_version}.md in the data folder
+    # (falling back to the program folder's prompts/{id}/) and is part of the input fingerprint, so bumping it makes copy written under the old one read as stale. Nothing is
+    # cached — every in-scope unit is generated every run. Omit this whole block to leave the
+    # generator un-configured (the API backend then refuses to run). See
+    # docs/clients/democlient-generator-spec.md.
+    generator:
+      enabled: true
+      model: claude-sonnet-5      # prefer a pinned snapshot id in production
+      prompt_version: v1
+      api_key_env: ANTHROPIC_API_KEY
+      max_tokens: 1024
+
+    # Phase 7.5: GPC brick -> site category. The GDSN feed carries a GPC brick
+    # (gpc_brick_code, attr GpcCategoryCode) but not the client's marketing category, so
+    # this maps one to the other. It is NOT derivable from the feed: bricks span categories
+    # (10003865 holds garden tools AND a nutcracker) and the client scheme is not semantic
+    # (Rain Burst, a shower head, is filed under keuken). So a brick_category_map plus a
+    # per-GTIN override list, built from the GS1 DIY sector datamodel and signed off by the
+    # client. Draft one with: python -m scripts.build_brick_map democlient --datamodel <file>
+    # --code-column <c> --category-column <c>. Unmapped bricks warn and leave the category
+    # unset — never guess. See docs/clients/democlient-page-adapter.md §5.7.
+    #
+    # The VALUES below are illustrative placeholders, not the signed-off map. Replace them.
+    categories:
+      terms: [keuken, doe_het_zelf, schoonmaak, outdoor_dier, dier, specials]
+      brick_category_map:
+        "10003865": outdoor_dier   # garden tools (the nutcracker is overridden per-GTIN below)
+        "10006459": specials       # lighting has no category of its own -> specials
+      overrides:
+        "02987653000XXX": keuken   # the nutcracker in brick 10003865 (illustrative GTIN)
+      # on_unmapped: warn          # fixed; shown for documentation only
+      # require_terms_exist: true  # resolved decision: require the WP term to pre-exist,
+      #                            # warn on miss. Enforced at the future term-assignment step.
+
+    # Phase 9.5 media. Images come from the export image_url (converted TIFF/PNG -> web JPEG).
+    # Videos are NOT in the feed: operator supplies per-language folders, files named by product
+    # name; a client-confirmed name->GTIN mapping (video_map_path) resolves them. Attachment ids
+    # are set imperatively at execute time, so the ACF field NAMES live here (not in acf_map).
+    media:
+      image_max_dim: 1600
+      image_quality: 85
+      header_image_field: product_header_image
+      regular_image_field: product_regular_image
+      video_file_field: product_header_video_file
+      image_write_shape: id          # confirm the live write shape before trusting (page-adapter §3)
+      video_transcode: true          # .mpg/.mpeg won't play in-browser -> ffmpeg to H.264 MP4
+      restrict_to_mapped_gtins: true # only GTINs with a confirmed video in every language may run
+      publish_without_video: true    # true: a GTIN missing a video publishes without one there and
+                                     # is listed as missing it; two videos in one language still hold
+      require_hero_image: true       # hold any GTIN whose source image_url is blank (E22); a
+                                     # runtime fetch failure still degrades gracefully (E7)
+      # ffmpeg_bin: ffmpeg           # override if ffmpeg is not on PATH
+      video_folders:
+        # Paths are case-sensitive on Linux — match the folders on disk exactly.
+        nl: "input/democlient/videos/NL"
+        fr: "input/democlient/videos/FR"
+      video_map_path: "input/democlient/videos/mapping.yml"

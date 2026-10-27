@@ -1,0 +1,67 @@
+<svg width="680" height="460" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>End-to-end flow from GS1 Data Source to QR code on packaging</title>
+  <desc>A human enriches product data in GS1 Data Source and exports it. A Claude Code session runs an orchestrator that, per GTIN per language, creates a WordPress page, sets the GS1 Digital Link redirect, and renders a QR symbol. Three outputs: live page, configured resolver, ready-to-print QR file.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#333333" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .box { stroke-width: 1; }
+      .gray { fill: #f4f4f2; stroke: #9c9994; }
+      .purple { fill: #ede8f5; stroke: #6b46c1; }
+      .teal { fill: #d4f0f0; stroke: #0d9488; }
+      .green { fill: #d6f2d9; stroke: #22945a; }
+      .title-text { font-family: system-ui, -apple-system, sans-serif; font-weight: 500; font-size: 14px; fill: #222222; }
+      .subtitle-text { font-family: system-ui, -apple-system, sans-serif; font-weight: 400; font-size: 12px; fill: #555555; }
+      .arrow-line { stroke: #333333; stroke-width: 1.5; fill: none; }
+      .arrow-label { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #555555; }
+    </style>
+  </defs>
+
+  <rect x="200" y="30" width="280" height="56" rx="8" class="box gray"/>
+  <text x="340" y="52" text-anchor="middle" dominant-baseline="central" class="title-text">GS1 Data Source</text>
+  <text x="340" y="70" text-anchor="middle" dominant-baseline="central" class="subtitle-text">Manual enrichment by human</text>
+
+  <line x1="340" y1="86" x2="340" y2="136" class="arrow-line" marker-end="url(#arrow)"/>
+  <text x="354" y="115" class="arrow-label">Export .xlsx</text>
+
+  <rect x="170" y="142" width="340" height="64" rx="8" class="box purple"/>
+  <text x="340" y="166" text-anchor="middle" dominant-baseline="central" class="title-text">Claude Code session</text>
+  <text x="340" y="186" text-anchor="middle" dominant-baseline="central" class="subtitle-text">Flow orchestrator + skills + MCPs</text>
+
+  <line x1="340" y1="206" x2="340" y2="256" class="arrow-line" marker-end="url(#arrow)"/>
+  <text x="354" y="232" class="arrow-label">Per GTIN, per language</text>
+
+  <rect x="55" y="262" width="170" height="64" rx="8" class="box teal"/>
+  <text x="140" y="286" text-anchor="middle" dominant-baseline="central" class="title-text">1. Create page</text>
+  <text x="140" y="306" text-anchor="middle" dominant-baseline="central" class="subtitle-text">WordPress MCP</text>
+
+  <line x1="225" y1="294" x2="251" y2="294" class="arrow-line" marker-end="url(#arrow)"/>
+
+  <rect x="255" y="262" width="170" height="64" rx="8" class="box teal"/>
+  <text x="340" y="286" text-anchor="middle" dominant-baseline="central" class="title-text">2. Set redirect</text>
+  <text x="340" y="306" text-anchor="middle" dominant-baseline="central" class="subtitle-text">GS1 NL MCP</text>
+
+  <line x1="425" y1="294" x2="451" y2="294" class="arrow-line" marker-end="url(#arrow)"/>
+
+  <rect x="455" y="262" width="170" height="64" rx="8" class="box teal"/>
+  <text x="540" y="286" text-anchor="middle" dominant-baseline="central" class="title-text">3. Render QR</text>
+  <text x="540" y="306" text-anchor="middle" dominant-baseline="central" class="subtitle-text">QR render MCP</text>
+
+  <line x1="140" y1="326" x2="140" y2="366" class="arrow-line" marker-end="url(#arrow)"/>
+  <line x1="340" y1="326" x2="340" y2="366" class="arrow-line" marker-end="url(#arrow)"/>
+  <line x1="540" y1="326" x2="540" y2="366" class="arrow-line" marker-end="url(#arrow)"/>
+
+  <rect x="55" y="370" width="170" height="64" rx="8" class="box green"/>
+  <text x="140" y="394" text-anchor="middle" dominant-baseline="central" class="title-text">WP page live</text>
+  <text x="140" y="414" text-anchor="middle" dominant-baseline="central" class="subtitle-text">on client site</text>
+
+  <rect x="255" y="370" width="170" height="64" rx="8" class="box green"/>
+  <text x="340" y="394" text-anchor="middle" dominant-baseline="central" class="title-text">Redirect wired</text>
+  <text x="340" y="414" text-anchor="middle" dominant-baseline="central" class="subtitle-text">Resolver &#8594; URL</text>
+
+  <rect x="455" y="370" width="170" height="64" rx="8" class="box green"/>
+  <text x="540" y="394" text-anchor="middle" dominant-baseline="central" class="title-text">QR file ready</text>
+  <text x="540" y="414" text-anchor="middle" dominant-baseline="central" class="subtitle-text">PNG / SVG / EPS</text>
+</svg>

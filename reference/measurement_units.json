@@ -1,0 +1,647 @@
+{
+  "1N": {
+    "en": "Count",
+    "fr": "Unité(s)",
+    "nl": "Eenheden"
+  },
+  "28": {
+    "en": "Kilogram per square metre (kg/m²)",
+    "fr": "Kilogramme par mètre carré (kg/m²)",
+    "nl": "Kilogram per vierkante meter (kg/m²)"
+  },
+  "2N": {
+    "en": "Decibel",
+    "fr": "Décibel",
+    "nl": "Decibel"
+  },
+  "2P": {
+    "en": "Kilobyte",
+    "fr": "Kilooctets",
+    "nl": "Kilobyte"
+  },
+  "2X": {
+    "en": "Metre per minute",
+    "fr": "Mètre par minute",
+    "nl": "Meter per minuut"
+  },
+  "4G": {
+    "en": "Microlitre",
+    "fr": "Microlitre",
+    "nl": "Microliter"
+  },
+  "4H": {
+    "en": "Micrometre",
+    "fr": "Micromètre",
+    "nl": "Micrometer"
+  },
+  "4L": {
+    "en": "Megabyte",
+    "fr": "Mégaoctets",
+    "nl": "Megabyte"
+  },
+  "59": {
+    "en": "Parts per million",
+    "fr": "Particules par million",
+    "nl": "Deeltjes per één miljoen"
+  },
+  "5B": {
+    "en": "Batch (Count)",
+    "fr": "Lot",
+    "nl": "Batch"
+  },
+  "A24": {
+    "en": "Candela per Square Metre",
+    "fr": "Candela par mètre carré",
+    "nl": "Candela per vierkante meter"
+  },
+  "A86": {
+    "en": "Gigahertz",
+    "fr": "Gigahertz",
+    "nl": "Gigahertz"
+  },
+  "AD": {
+    "en": "Byte",
+    "fr": "Octet",
+    "nl": "Byte"
+  },
+  "AMH": {
+    "en": "Ah",
+    "fr": "Ah",
+    "nl": "Ah"
+  },
+  "AMP": {
+    "en": "Ampere",
+    "fr": "Ampère",
+    "nl": "Ampère"
+  },
+  "ANN": {
+    "en": "Years",
+    "fr": "Ans",
+    "nl": "Jaren"
+  },
+  "AS": {
+    "en": "Assortment",
+    "fr": "Assortiment",
+    "nl": "Assortiment"
+  },
+  "AWG": {
+    "en": "American wire gauge",
+    "fr": "Jauge",
+    "nl": "Gauge"
+  },
+  "B37": {
+    "en": "Kilogram Force",
+    "fr": "Kilogram Force",
+    "nl": "Kilogram Force"
+  },
+  "BAR": {
+    "en": "Bar",
+    "fr": "Bar",
+    "nl": "Bar"
+  },
+  "BPM": {
+    "en": "Beats Per Minute",
+    "fr": "Battements par minute",
+    "nl": "Slagen per minuut"
+  },
+  "BTU": {
+    "en": "British Thermal Unit",
+    "fr": "Unité thermique britannique",
+    "nl": "Britse thermische eenheid"
+  },
+  "C45": {
+    "en": "Nanometre",
+    "fr": "Nanomètre",
+    "nl": "Nanometer"
+  },
+  "C47": {
+    "en": "Nanosecond",
+    "fr": "Nanoseconde",
+    "nl": "Nanoseconde"
+  },
+  "C65": {
+    "en": "Pascal seconds",
+    "fr": "Pascal secondes",
+    "nl": "Pascal secondes"
+  },
+  "CEL": {
+    "en": "Celsius",
+    "fr": "Celsius",
+    "nl": "Celsius"
+  },
+  "CGM": {
+    "en": "Centigram",
+    "fr": "Centigramme",
+    "nl": "Centigram"
+  },
+  "CLT": {
+    "en": "Centilitre",
+    "fr": "Centilitre",
+    "nl": "Centiliter"
+  },
+  "CMK": {
+    "en": "Square centimetre",
+    "fr": "Centimètre carré",
+    "nl": "Vierkante centimeter"
+  },
+  "CMQ": {
+    "en": "Cubic centimetre",
+    "fr": "Centimètre cube",
+    "nl": "Kubieke centimeter"
+  },
+  "CMT": {
+    "en": "Centimetre",
+    "fr": "Centimètre",
+    "nl": "Centimeter"
+  },
+  "D03": {
+    "en": "Kilowatt/hour",
+    "fr": "Kilowatt/heure",
+    "nl": "Kilowatt/uur"
+  },
+  "D19": {
+    "en": "Square metre kelvin per watt",
+    "fr": "Mètre carré-kelvin par watt",
+    "nl": "Vierkante meter kelvin per watt"
+  },
+  "D53": {
+    "en": "Watt per metre Kelvin",
+    "fr": "Watt par mètre Kelvin",
+    "nl": "Watt per meter Kelvin"
+  },
+  "D55": {
+    "en": "Heat Transfer Coefficient",
+    "fr": "Coefficient de transfert de chaleur",
+    "nl": "Warmte-overdracht coëfficiënt"
+  },
+  "DAY": {
+    "en": "Days",
+    "fr": "Journées",
+    "nl": "Dagen"
+  },
+  "DD": {
+    "en": "Degrees",
+    "fr": "Degrés",
+    "nl": "Graden"
+  },
+  "DG": {
+    "en": "Decigram",
+    "fr": "Décigramme",
+    "nl": "Decigram"
+  },
+  "DLT": {
+    "en": "Decilitre",
+    "fr": "Décilitre",
+    "nl": "Deciliter"
+  },
+  "DMT": {
+    "en": "Decimetre",
+    "fr": "Décimètre",
+    "nl": "Decimeter"
+  },
+  "DZN": {
+    "en": "Dozen",
+    "fr": "Douzaine",
+    "nl": "Dozijn"
+  },
+  "E09": {
+    "en": "mAh",
+    "fr": "mAh",
+    "nl": "mAh"
+  },
+  "E14": {
+    "en": "Kilocalorie (international table)",
+    "fr": "Kilocalorie (tableau international)",
+    "nl": "Kilocalorie (internationale tabel)"
+  },
+  "E20": {
+    "en": "Megabits per second (MB/s)",
+    "fr": "Mégabits par seconde (MB/s)",
+    "nl": "Megabits per seconde (MB/s)"
+  },
+  "E27": {
+    "en": "Dose",
+    "fr": "Dose",
+    "nl": "Dosis"
+  },
+  "E32": {
+    "en": "Litre Per Hour",
+    "fr": "Litre par heure",
+    "nl": "Liter per uur"
+  },
+  "E34": {
+    "en": "Gigabyte",
+    "fr": "Gigaoctets",
+    "nl": "Gigabyte"
+  },
+  "E35": {
+    "en": "Terabyte",
+    "fr": "Téraoctets",
+    "nl": "Terabyte"
+  },
+  "E37": {
+    "en": "Pixel",
+    "fr": "Pixel",
+    "nl": "Pixel"
+  },
+  "E39": {
+    "en": "Dots per inch",
+    "fr": "Points par pouce",
+    "nl": "Beeldpunten per inch"
+  },
+  "E55": {
+    "en": "Number of use",
+    "fr": "Nombre d'utilisation",
+    "nl": "Aantal toepassing"
+  },
+  "EA": {
+    "en": "Each",
+    "fr": "Chaque",
+    "nl": "Stuks"
+  },
+  "F27": {
+    "en": "Gram Per Hour",
+    "fr": "Gramme par heure",
+    "nl": "Gram per uur"
+  },
+  "FAH": {
+    "en": "Degree Fahrenheit",
+    "fr": "Degré Fahrenheit",
+    "nl": "Graden Fahrenheit"
+  },
+  "FJ": {
+    "en": "Sizing Factor",
+    "fr": "Facteur de dimensionnement",
+    "nl": "Maatfactor"
+  },
+  "FOT": {
+    "en": "Foot",
+    "fr": "Pied",
+    "nl": "Voet"
+  },
+  "FTK": {
+    "en": "Square foot",
+    "fr": "Pied carré",
+    "nl": "Vierkante voet"
+  },
+  "FTQ": {
+    "en": "Cubic foot",
+    "fr": "Pied carré",
+    "nl": "Kubieke voet"
+  },
+  "G21": {
+    "en": "Cup (US)",
+    "fr": "Coupe (US)",
+    "nl": "Kopje (VS)"
+  },
+  "G24": {
+    "en": "Tablespoon",
+    "fr": "Cuillerée à soupe",
+    "nl": "Eetlepel"
+  },
+  "G25": {
+    "en": "Teaspoon",
+    "fr": "Cuillère à café",
+    "nl": "Theelepel"
+  },
+  "GL": {
+    "en": "Gram Per Litre",
+    "fr": "Gramme par litre",
+    "nl": "Gram per liter"
+  },
+  "GLI": {
+    "en": "Gallon (UK)",
+    "fr": "Gallon (Royaume-Uni)",
+    "nl": "Gallon (VK)"
+  },
+  "GLL": {
+    "en": "Gallon (US)",
+    "fr": "Gallon (États-Unis)",
+    "nl": "Gallon (VS)"
+  },
+  "GM": {
+    "en": "Gram Per Square Metre",
+    "fr": "Gramme par mètre carré",
+    "nl": "Gram per vierkante meter"
+  },
+  "GRM": {
+    "en": "Gram",
+    "fr": "Gramme",
+    "nl": "Gram"
+  },
+  "H83": {
+    "en": "Litre per kilogram",
+    "fr": "Litre par kilogramme",
+    "nl": "Liter per kilogram"
+  },
+  "H87": {
+    "en": "Piece",
+    "fr": "Pièce",
+    "nl": "Stuk"
+  },
+  "HGM": {
+    "en": "Hectogram",
+    "fr": "Hectogramme",
+    "nl": "Hectogram"
+  },
+  "HLT": {
+    "en": "Hectolitre",
+    "fr": "Hectolitre",
+    "nl": "Hectoliter"
+  },
+  "HTZ": {
+    "en": "Hertz",
+    "fr": "Hertz",
+    "nl": "Hertz"
+  },
+  "HUR": {
+    "en": "Hour",
+    "fr": "Heure",
+    "nl": "Uur"
+  },
+  "INH": {
+    "en": "Inch",
+    "fr": "Pouce",
+    "nl": "Inch"
+  },
+  "JOU": {
+    "en": "Joule",
+    "fr": "Joule",
+    "nl": "Joule"
+  },
+  "K43": {
+    "en": "Horsepower",
+    "fr": "Horsepower",
+    "nl": "Paardenkracht"
+  },
+  "KEL": {
+    "en": "Kelvin",
+    "fr": "Kelvin",
+    "nl": "Kelvin"
+  },
+  "KGM": {
+    "en": "Kilogram",
+    "fr": "Kilogramme",
+    "nl": "Kilogram"
+  },
+  "KHZ": {
+    "en": "Kilohertz",
+    "fr": "Kilohertz",
+    "nl": "Kilohertz"
+  },
+  "KJO": {
+    "en": "Kilojoule",
+    "fr": "Kilojoule",
+    "nl": "Kilojoule"
+  },
+  "KMT": {
+    "en": "Kilometre",
+    "fr": "Kilomètre",
+    "nl": "Kilometer"
+  },
+  "KNM": {
+    "en": "Kilo Newton per square meter (kN/m²)",
+    "fr": "Kilo Newton par mètre carré (kN/m²)",
+    "nl": "KiloNewton per vierkante meter (kN/m²)"
+  },
+  "KPA": {
+    "en": "Kilopascal",
+    "fr": "Kilopascal",
+    "nl": "KiloPascal"
+  },
+  "KWH": {
+    "en": "Kilowatthour (kWh)",
+    "fr": "Kilowattheure (kWh)",
+    "nl": "Kilowattuur (kWh)"
+  },
+  "KWT": {
+    "en": "Kilowatt",
+    "fr": "Kilowatt",
+    "nl": "Kilowatt"
+  },
+  "L/min": {
+    "en": "Litre per minute",
+    "fr": "Litre par minute",
+    "nl": "Liter per minuut"
+  },
+  "LD": {
+    "en": "Litre/day",
+    "fr": "Litre/jour",
+    "nl": "Liter/dag"
+  },
+  "LTR": {
+    "en": "Litre",
+    "fr": "Litre",
+    "nl": "Liter"
+  },
+  "LUM": {
+    "en": "Lumen (lm)",
+    "fr": "Lumen (lm)",
+    "nl": "Lumen (lm)"
+  },
+  "LUX": {
+    "en": "Lux",
+    "fr": "Lux",
+    "nl": "Lux"
+  },
+  "MBR": {
+    "en": "Millibar",
+    "fr": "Millibar",
+    "nl": "Millibar"
+  },
+  "MC": {
+    "en": "Microgram",
+    "fr": "Microgramme",
+    "nl": "Microgram"
+  },
+  "MGM": {
+    "en": "Milligram",
+    "fr": "Milligramme",
+    "nl": "Milligram"
+  },
+  "MIN": {
+    "en": "Minute (unit of time)",
+    "fr": "Minute (unité de temps)",
+    "nl": "Minuut (tijdseenheid)"
+  },
+  "MLT": {
+    "en": "Millilitre",
+    "fr": "Millilitre",
+    "nl": "Milliliter"
+  },
+  "MMK": {
+    "en": "Square millimetre",
+    "fr": "Milimètre carré",
+    "nl": "Vierkante millimeter"
+  },
+  "MMT": {
+    "en": "Millimetre",
+    "fr": "Millimètre",
+    "nl": "Millimeter"
+  },
+  "MON": {
+    "en": "Month",
+    "fr": "Mois",
+    "nl": "Maand"
+  },
+  "MQH": {
+    "en": "Cubic Metre Per Hour",
+    "fr": "Mètre cube par heure",
+    "nl": "Kubieke meter per uur"
+  },
+  "MTK": {
+    "en": "Square metre",
+    "fr": "Mètre carré",
+    "nl": "Vierkante meter"
+  },
+  "MTQ": {
+    "en": "Cubic metre",
+    "fr": "Mètre cube",
+    "nl": "Kubieke meter"
+  },
+  "MTR": {
+    "en": "Metre",
+    "fr": "Mètre",
+    "nl": "Meter"
+  },
+  "MTS": {
+    "en": "Metre Per Second",
+    "fr": "Mètre par seconde",
+    "nl": "Meter per seconde"
+  },
+  "NEW": {
+    "en": "Newton",
+    "fr": "Newton",
+    "nl": "Newton"
+  },
+  "NTU": {
+    "en": "Nephelometric turbidity unit",
+    "fr": "Nephelometric turbidity unit",
+    "nl": "Nephelometric turbidity unit"
+  },
+  "NU": {
+    "en": "Newton metre",
+    "fr": "Newton mètre",
+    "nl": "Newtonmeter"
+  },
+  "OHM": {
+    "en": "Ohm",
+    "fr": "Ohm",
+    "nl": "Ohm"
+  },
+  "ONZ": {
+    "en": "Ounce",
+    "fr": "Once",
+    "nl": "Ons"
+  },
+  "OPM": {
+    "en": "Oscillations Per Minute",
+    "fr": "Oscillations par minute",
+    "nl": "Oscillaties per minuut"
+  },
+  "P1": {
+    "en": "Percent",
+    "fr": "Pourcent",
+    "nl": "Procent"
+  },
+  "PAL": {
+    "en": "Pascal",
+    "fr": "Pascal",
+    "nl": "Pascal"
+  },
+  "PTN": {
+    "en": "Portion",
+    "fr": "Portion",
+    "nl": "Portie"
+  },
+  "RPM": {
+    "en": "Revolutions per minute",
+    "fr": "Tours par minute",
+    "nl": "Toeren per minuut"
+  },
+  "S4": {
+    "en": "Square metre/second",
+    "fr": "Mètre carré/seconde",
+    "nl": "Vierkante meter/seconde"
+  },
+  "SEC": {
+    "en": "Second (unit of time)",
+    "fr": "Deuxième (unité de temps)",
+    "nl": "Seconde (tijdseenheid)"
+  },
+  "SET": {
+    "en": "Set",
+    "fr": "Ensemble",
+    "nl": "Set"
+  },
+  "TNE": {
+    "en": "Ton (metric ton = 1000 kg)",
+    "fr": "Ton (tonne métrique)",
+    "nl": "Ton (metrisch)"
+  },
+  "TPI": {
+    "en": "Teeth Per Inch",
+    "fr": "Dents par pouce",
+    "nl": "Tanden per inch"
+  },
+  "U2": {
+    "en": "Tablet",
+    "fr": "Tablette",
+    "nl": "Tablet"
+  },
+  "VLT": {
+    "en": "Volt",
+    "fr": "Volt",
+    "nl": "Volt"
+  },
+  "W/m2": {
+    "en": "Watt per square metre",
+    "fr": "Watt par mètre carré",
+    "nl": "Watt per square metre"
+  },
+  "WEE": {
+    "en": "Week",
+    "fr": "Semaine",
+    "nl": "Week"
+  },
+  "WHR": {
+    "en": "Watt hour",
+    "fr": "Watt heure",
+    "nl": "Watt uur"
+  },
+  "WTT": {
+    "en": "Watt",
+    "fr": "Watt",
+    "nl": "Watt"
+  },
+  "XRO": {
+    "en": "Roll (count)",
+    "fr": "Rouleau",
+    "nl": "Rol"
+  },
+  "XST": {
+    "en": "Sheet",
+    "fr": "Feuille",
+    "nl": "Vel"
+  },
+  "X_NGM": {
+    "en": "Nanogram",
+    "fr": "Nanogramme",
+    "nl": "Nanogram"
+  },
+  "YRD": {
+    "en": "Yard",
+    "fr": "Cour",
+    "nl": "Yard"
+  },
+  "mL/min": {
+    "en": "Millilitre per minute",
+    "fr": "Millilitre par minute",
+    "nl": "Milliliter per minuut"
+  },
+  "{spo}": {
+    "en": "Spores",
+    "fr": "Spores",
+    "nl": "Sporen"
+  }
+}

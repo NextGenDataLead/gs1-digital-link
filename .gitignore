@@ -1,0 +1,61 @@
+# === Secrets & per-client config (never commit) ===
+.env
+.env.*
+!.env.example
+clients.yml
+# The operator shell keeps the previous version beside the file it rewrites, and writes a
+# candidate there while validating one. Both hold whatever clients.yml holds.
+clients.yml.*
+*.key
+*.pem
+*.p12
+credentials.json
+secrets.*
+
+# === Client audit trail (local-only) ===
+# The live-publish log records the real published URLs, WordPress page ids and GTINs.
+# Those identifiers have to stay accurate to be worth keeping, so the file is not
+# committed to a public repository. It lives beside its client's other docs and is
+# reconstructable from output/{client_id}/state.json, which is the machine source of truth.
+docs/clients/*-live-log.md
+
+# === Tool inputs/outputs ===
+# The directories are tracked (via .gitkeep) so a fresh clone has somewhere to put
+# an export and somewhere to write results. Everything inside them stays ignored:
+# input/ holds client exports and media, output/ holds state.json, plans and run logs.
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+# uv.lock is deliberately NOT ignored. The operator's machine installs from it via
+# install.command / install.bat, so it is the record of exactly which versions that
+# machine gets — and the thing an IT reviewer can vet before approving the install.
+# A CI step (`uv lock --check`) fails if it drifts from pyproject.toml.
+
+# === Node / TypeScript ===
+node_modules/
+dist/
+build/
+npm-debug.log*
+yarn-error.log*
+
+# === OS & editor ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+# Claude Code's per-person permissions and settings.
+.claude/settings.local.json

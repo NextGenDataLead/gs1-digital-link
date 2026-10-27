@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.NextGenDataLead/qr-render",
+  "description": "Render print-ready QR symbols for GS1 Digital Link URIs on demand.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/NextGenDataLead/gs1-digital-link",
+    "source": "github",
+    "subfolder": "mcps/qr-render"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@gs1-orchestrator/qr-render-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

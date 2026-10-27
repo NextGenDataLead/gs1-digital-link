@@ -1,0 +1,14 @@
+# The operator's entry points are double-clicked, not run from a shell, so their line
+# endings have to be right for the platform that runs them regardless of anyone's
+# core.autocrlf setting. cmd.exe mis-parses labels and `goto` in a .bat checked out with
+# bare LF endings, which fails as a batch file that silently does the wrong thing.
+*.bat text eol=crlf
+*.command text eol=lf
+# Shell scripts run inside the Linux container (docker/entrypoint.sh). Checked out with CRLF on a
+# Windows machine and built there, the image fails at its first line with `bad interpreter`.
+*.sh text eol=lf
+
+# uv.lock is generated, so it is collapsed by default in a review rather than read line by
+# line. It is still committed and still diffable — `uv lock --check` in CI is what actually
+# guards it.
+uv.lock linguist-generated=true

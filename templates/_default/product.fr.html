@@ -1,0 +1,43 @@
+<article class="gs1-product" lang="fr">
+  <header class="gs1-product__header">
+    <p class="gs1-product__brand">{{brand}}</p>
+    <h1 class="gs1-product__name">{{product_name}}</h1>
+  </header>
+
+  {{#image_url}}
+  <figure class="gs1-product__figure">
+    <img class="gs1-product__image" src="{{image_url}}" alt="{{product_name}}" loading="lazy">
+  </figure>
+  {{/image_url}}
+
+  {{#description_short}}
+  <p class="gs1-product__summary">{{description_short}}</p>
+  {{/description_short}}
+
+  {{#description_long}}
+  <div class="gs1-product__description">{{description_long}}</div>
+  {{/description_long}}
+
+  <dl class="gs1-product__facts">
+    {{#net_content}}
+    <div class="gs1-product__fact">
+      <dt>Contenu net</dt>
+      <dd>{{net_content}}</dd>
+    </div>
+    {{/net_content}}
+    {{#category}}
+    <div class="gs1-product__fact">
+      <dt>Catégorie</dt>
+      <dd>{{category}}</dd>
+    </div>
+    {{/category}}
+    <div class="gs1-product__fact">
+      <dt>GTIN</dt>
+      <dd>{{gtin14}}</dd>
+    </div>
+  </dl>
+
+  <footer class="gs1-product__footer">
+    <p class="gs1-product__source">{{client.display_name}}</p>
+  </footer>
+</article>

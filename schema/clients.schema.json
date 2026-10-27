@@ -1,0 +1,528 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NextGenDataLead/gs1-digital-link/schema/clients.schema.json",
+  "title": "clients.yml",
+  "description": "Per-client configuration for the GS1 Digital Link Orchestrator. Derived from PROJECT_HANDOVER.md §10.1 and IMPLEMENTATION_SPEC.md §2.4. Secrets are never stored here; *_env keys name environment variables that hold them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "clients"],
+  "properties": {
+    "version": {
+      "description": "Config schema version. Locked at 1 for v0.1.0.",
+      "const": 1
+    },
+    "defaults": {
+      "description": "Settings inherited by every client unless overridden per client.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gs1": { "$ref": "#/$defs/gs1Defaults" },
+        "wordpress": { "$ref": "#/$defs/wordpressDefaults" },
+        "qr": { "$ref": "#/$defs/qr" },
+        "flow": { "$ref": "#/$defs/flow" }
+      }
+    },
+    "clients": {
+      "description": "Map of client_id to that client's configuration.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+      "additionalProperties": { "$ref": "#/$defs/client" }
+    }
+  },
+  "$defs": {
+    "gs1Defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment": {
+          "description": "Which GS1 NL environment to target.",
+          "enum": ["test", "production"]
+        },
+        "api_version": {
+          "description": "Digital Link API version. Locked at v2 for v0.1.0.",
+          "const": "v2"
+        },
+        "identification_key_type": {
+          "description": "GS1 identifier type. Always Gtin for v0.1.0 scope.",
+          "const": "Gtin"
+        },
+        "digital_link_url_pattern": {
+          "type": "string",
+          "description": "Template for the canonical Digital Link URI; {gtin14} is substituted."
+        },
+        "resolver_settings": { "$ref": "#/$defs/resolverSettings" },
+        "default_media_type": {
+          "type": "string",
+          "description": "mediaType applied to links that don't specify one (e.g. text/html)."
+        },
+        "batch_size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Entries per request to the bulk upsert endpoint."
+        }
+      }
+    },
+    "resolverSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "use_gs1_resolver": {
+          "type": "boolean",
+          "description": "Always true for v0.1.0 scope (decision §3.1)."
+        },
+        "resolver_domain_name": {
+          "type": ["string", "null"],
+          "description": "Only meaningful when use_gs1_resolver is false."
+        }
+      }
+    },
+    "gs1Client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["account_number_test", "client_id_env_test", "client_secret_env_test"],
+      "properties": {
+        "account_number_test": {
+          "type": "string",
+          "description": "accountNumber for the test/sandbox environment — taken from the minted token's accountNumber claim. Differs from production."
+        },
+        "account_number_production": {
+          "type": "string",
+          "description": "accountNumber for the production environment. Verify against MyGS1."
+        },
+        "client_id_env_test": {
+          "type": "string",
+          "description": "Name of the env var holding the test/sandbox OAuth2 client id."
+        },
+        "client_secret_env_test": {
+          "type": "string",
+          "description": "Name of the env var holding the test/sandbox OAuth2 client secret."
+        },
+        "client_id_env_production": {
+          "type": "string",
+          "description": "Name of the env var holding the production OAuth2 client id."
+        },
+        "client_secret_env_production": {
+          "type": "string",
+          "description": "Name of the env var holding the production OAuth2 client secret."
+        },
+        "environment": { "enum": ["test", "production"] },
+        "api_version": { "const": "v2" },
+        "identification_key_type": { "const": "Gtin" },
+        "digital_link_url_pattern": { "type": "string" },
+        "resolver_settings": { "$ref": "#/$defs/resolverSettings" },
+        "default_media_type": { "type": "string" },
+        "batch_size": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "wordpressDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "post_type": { "type": "string" },
+        "post_status": { "type": "string" },
+        "multilingual_plugin": { "$ref": "#/$defs/multilingualPlugin" },
+        "wpml_helper_path": {
+          "type": "string",
+          "description": "Path to the site-side WPML helper route (multilingual_plugin: wpml only). WPML exposes no core REST route for language assignment or translation linking; the namespace is per-site."
+        },
+        "default_language": { "type": "string" },
+        "languages": { "$ref": "#/$defs/languages" },
+        "image_handling": { "$ref": "#/$defs/imageHandling" }
+      }
+    },
+    "wordpressClient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["site_url", "username", "app_password_env"],
+      "properties": {
+        "site_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the client's WordPress site."
+        },
+        "username": {
+          "type": "string",
+          "description": "Automation user (Editor role) for REST calls."
+        },
+        "app_password_env": {
+          "type": "string",
+          "description": "Name of the env var holding the WordPress application password."
+        },
+        "post_type": { "type": "string" },
+        "post_status": { "type": "string" },
+        "multilingual_plugin": { "$ref": "#/$defs/multilingualPlugin" },
+        "wpml_helper_path": {
+          "type": "string",
+          "description": "Path to the site-side WPML helper route (multilingual_plugin: wpml only). WPML exposes no core REST route for language assignment or translation linking; the namespace is per-site."
+        },
+        "default_language": { "type": "string" },
+        "languages": { "$ref": "#/$defs/languages" },
+        "image_handling": { "$ref": "#/$defs/imageHandling" },
+        "taxonomies": {
+          "type": "object",
+          "description": "Map of WordPress taxonomy slug to how its terms are sourced.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["map_from_column"],
+            "properties": {
+              "map_from_column": {
+                "type": "string",
+                "description": "ProductRecord field / export column that supplies the term."
+              }
+            }
+          }
+        },
+        "acf_map": {
+          "type": "object",
+          "description": "Map of ACF field name to the ProductRecord field feeding it, for themes that render from ACF rather than post_content (e.g. Oxygen). Reach into extras with 'extras.{name}'. Omit for clients that render from the body template.",
+          "additionalProperties": { "type": "string" }
+        },
+        "slug_pattern": {
+          "type": "string",
+          "description": "Slug template, e.g. 'p-{gtin}'. Immutable once printed on packaging."
+        },
+        "target_url_pattern": {
+          "type": "string",
+          "description": "Template for the page URL the resolver points at."
+        }
+      }
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "format": {
+          "description": "Export layout. 'flat' = single-sheet MyGS1 article list; 'gdsn' = multi-sheet GS1 Data Source / GDSN datapool export.",
+          "enum": ["flat", "gdsn"]
+        },
+        "path": {
+          "type": "string",
+          "description": "Path to the client's GS1 Data Source / MyGS1 Excel/CSV export."
+        },
+        "column_map": {
+          "type": "object",
+          "description": "Flat format: mapping between export columns and ProductRecord field paths (a map of string to string).",
+          "additionalProperties": { "type": "string" }
+        },
+        "extras_columns": {
+          "type": "array",
+          "description": "Flat format: export columns carried through verbatim into ProductRecord.extras.",
+          "items": { "type": "string" }
+        },
+        "market_priority": {
+          "type": "array",
+          "description": "GDSN format: TargetMarketCountryCodes in the order to consult them, e.g. [\"528\", \"056\", \"276\", \"442\"]. The first market with a non-blank value wins, per product/field/language; the same order picks scalars. The site's languages come from wordpress.languages.",
+          "items": { "type": "string" }
+        },
+        "gdsn_map": {
+          "type": "object",
+          "description": "GDSN format: mapping of ProductRecord field name to the GDSN attribute source.",
+          "additionalProperties": { "$ref": "#/$defs/gdsnSource" }
+        },
+        "gdsn_extras": {
+          "type": "object",
+          "description": "GDSN format: named pass-through attributes carried into ProductRecord.extras.",
+          "additionalProperties": { "$ref": "#/$defs/gdsnSource" }
+        }
+      }
+    },
+    "gdsnSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sheet"],
+      "properties": {
+        "sheet": {
+          "type": "string",
+          "description": "Worksheet (GDSN module) holding the attribute."
+        },
+        "attribute": {
+          "type": "string",
+          "description": "GDSN attribute number (e.g. '3297') or a path segment name (e.g. 'GpcCategoryCode')."
+        },
+        "localised": {
+          "type": "boolean",
+          "description": "Whether the attribute is a per-language LanguageCode/Value group."
+        },
+        "multivalue": {
+          "type": "boolean",
+          "description": "For an attribute that repeats across [n] slots (e.g. TradeItemFeatureBenefit[n], or Material[0..2]), read every slot instead of only the first; blank slots are skipped. A localised attribute joins its slots with a newline (the generator splits attr 1067 back into ranked USPs on it); a language-agnostic one joins with ', ', because its value renders verbatim on the page."
+        },
+        "with_unit": {
+          "type": "boolean",
+          "description": "Whether to append the paired MeasurementUnitCode to the value."
+        },
+        "max_length": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Longest this value is expected to be, in characters. A longer value is reported to source_issues.json and kept verbatim — never truncated. Omit for no expectation."
+        },
+        "strip_prefix": {
+          "type": "string",
+          "description": "Literal prefix removed from the resolved value when present (e.g. 'Democlient ' where the feed repeats the brand in the product name). Matched exactly; a value that only resembles the prefix is reported as a likely source-data misspelling and left unchanged, never repaired."
+        },
+        "primary_file": {
+          "type": "boolean",
+          "description": "Whether to resolve the primary referenced-file URI (for image_url)."
+        },
+        "report_issues": {
+          "type": "boolean",
+          "description": "Whether this field's cross-market findings — value_blank (absent from every market) and value_inconsistent_across_markets (markets disagree) — reach source_issues.json. Default true. Set false for a field the tool parses but does not publish directly (e.g. a generator input), whose findings are deferred. Does not affect value_too_long / brand_prefix_mismatch."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether a product missing this value may never publish (E23). A localised field must be non-blank in every configured language; the hold is per product, not per language, so a SKU is never half-published. Mutually exclusive with required_group."
+        },
+        "required_group": {
+          "type": "string",
+          "description": "Name of an either-or group: the product satisfies it when at least one member carries a value. For alternatives where neither field is individually mandatory but one must be present (e.g. marketing copy from attr 1083 or 1067). Mutually exclusive with required."
+        },
+        "in_matrix": {
+          "type": "boolean",
+          "description": "Whether this field gets a column in the data-quality report's coverage matrix. Default true. Set false for a value the pipeline carries but nothing consumes — a column present for every product that feeds nothing is noise in a table whose job is to show gaps. Does not stop the field being parsed."
+        },
+        "translate": {
+          "type": "boolean",
+          "description": "Whether the generator may fill this value in a language the feed lacks, by translating it from a language the feed has. Default false — opt in per field, because every filled value costs producer tokens and puts more LLM-written text on the page. A field blank in every language is never filled and stays a source finding. Each filled value is reported so it can be put back into MyGS1."
+        }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "override_dir": {
+          "type": "string",
+          "description": "Directory holding this client's template overrides."
+        },
+        "files": {
+          "type": "object",
+          "description": "Map of language code to template filename.",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "gs1Link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["link_type"],
+      "properties": {
+        "link_type": {
+          "type": "string",
+          "description": "GS1 link type, e.g. 'pip'."
+        },
+        "default": {
+          "type": "boolean",
+          "description": "Whether this is the default link type. Applied to the default language's link only, however many languages the record carries."
+        },
+        "public": { "type": "boolean" },
+        "title_pattern": {
+          "type": "string",
+          "description": "Template for the link title, e.g. '{product_name}'."
+        }
+      }
+    },
+    "qr": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "formats": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["svg", "png", "eps"] }
+        },
+        "size_mm": { "type": "integer", "minimum": 1 },
+        "error_correction": { "enum": ["L", "M", "Q", "H"] },
+        "dpi": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "flow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "on_change": {
+          "type": "string",
+          "description": "Behaviour when a re-run detects changed rows (default: prompt)."
+        },
+        "on_missing_field": {
+          "type": "string",
+          "description": "Behaviour when a required per-language field is missing (default: prompt)."
+        },
+        "batch_size": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "processList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "description": "Operator-maintained list of exactly which GTINs a run may touch. Every GTIN in the file is processed; no cell values are interpreted. The operator prepares it by deleting rows that should not run.",
+      "properties": {
+        "path": { "type": "string" },
+        "gtin_column": { "type": "string" },
+        "target_url_column": {
+          "type": "string",
+          "description": "Optional column holding the address of a page this tool did not make (e.g. 'Link naar site'). A links run points the product's GS1 record at it. Blank cells change nothing."
+        }
+      }
+    },
+    "categories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["terms"],
+      "description": "Phase 7.5: GPC brick -> client category-term mapping. Client-owned, signed-off data. Term-membership of map/override values is enforced by the loader, not this schema.",
+      "properties": {
+        "terms": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "The closed set of allowed category terms."
+        },
+        "brick_category_map": {
+          "type": "object",
+          "description": "Map of GPC brick code to a category term.",
+          "additionalProperties": { "type": "string" }
+        },
+        "overrides": {
+          "type": "object",
+          "description": "Per-GTIN category term, overriding the brick map for bricks that span categories.",
+          "additionalProperties": { "type": "string" }
+        },
+        "on_unmapped": {
+          "enum": ["warn"],
+          "description": "What to do with a brick that maps to no term. Fixed at 'warn': leave unset, never guess."
+        },
+        "require_terms_exist": {
+          "type": "boolean",
+          "description": "Whether a resolved term must already exist as a WordPress taxonomy term (vs auto-create). Recorded here; enforced at the future term-assignment step."
+        }
+      }
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Content-generator (LLM copy) settings. The API backend is opt-in via enabled; api_key_env names the env var holding the key, never the key. prompt_version selects the frozen voice template prompts/{client}/generation.{prompt_version}.md and is part of the input fingerprint.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the API backend (run_generate --backend api) may run for this client. Defaults false; the in-session producer needs no key."
+        },
+        "model": {
+          "type": "string",
+          "description": "Anthropic model id, e.g. claude-sonnet-5. Prefer a pinned snapshot for production."
+        },
+        "prompt_version": {
+          "type": "string",
+          "description": "Voice/prompt template version; selects prompts/{client}/generation.{prompt_version}.md and is part of the input fingerprint, so bumping it makes existing copy read as stale."
+        },
+        "api_key_env": {
+          "type": "string",
+          "description": "Name of the env var holding the Anthropic API key."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Max output tokens per generation call."
+        }
+      }
+    },
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Phase 9.5 media: image convert/resize params, per-language video folders, the confirmed video mapping path, and the ACF field names media is written to (names in config, not code).",
+      "properties": {
+        "image_max_dim": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Longest-edge cap in pixels for the uploaded hero image."
+        },
+        "image_quality": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "JPEG quality (1-100) for the converted image."
+        },
+        "header_image_field": {
+          "type": "string",
+          "description": "ACF field name for the hero image."
+        },
+        "regular_image_field": {
+          "type": "string",
+          "description": "ACF field name for the main image (usually the same hero attachment)."
+        },
+        "video_file_field": {
+          "type": "string",
+          "description": "ACF field name for the product video attachment."
+        },
+        "image_write_shape": {
+          "enum": ["id", "url"],
+          "description": "Whether the image ACF fields take a WP attachment id or a URL string. Confirm live before trusting (page-adapter §3 write-shape trap)."
+        },
+        "video_folders": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Per-language folder of operator-supplied videos, e.g. {nl: path, fr: path}."
+        },
+        "video_map_path": {
+          "type": "string",
+          "description": "Path to the client-confirmed video name->GTIN mapping YAML."
+        },
+        "video_transcode": {
+          "type": "boolean",
+          "description": "Transcode source videos to H.264 MP4 via ffmpeg before upload (MPEG-1/2 will not play in-browser)."
+        },
+        "ffmpeg_bin": {
+          "type": "string",
+          "description": "ffmpeg executable name or path."
+        },
+        "restrict_to_mapped_gtins": {
+          "type": "boolean",
+          "description": "When true, run_plan/run_execute process only GTINs with a client-confirmed video in every language; every other GTIN is blocked."
+        },
+        "publish_without_video": {
+          "type": "boolean",
+          "description": "Only with restrict_to_mapped_gtins. When true, a GTIN with no confirmed video in some language publishes without one there and is listed as missing it; a GTIN confirmed to two files in one language is still held."
+        },
+        "require_hero_image": {
+          "type": "boolean",
+          "description": "When true, a GTIN whose source image_url is blank is held out of the plan (E22) — a hero image is treated as required. Off by default. A runtime image fetch failure still degrades gracefully (E7)."
+        }
+      }
+    },
+    "multilingualPlugin": { "enum": ["none", "polylang", "wpml"] },
+    "imageHandling": { "enum": ["url_in_export", "local_folder", "manual"] },
+    "languages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "ISO 639-1 language codes."
+    },
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["display_name", "gs1", "export", "wordpress"],
+      "properties": {
+        "display_name": { "type": "string" },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this client is processed. Defaults to true when omitted."
+        },
+        "gs1": { "$ref": "#/$defs/gs1Client" },
+        "export": { "$ref": "#/$defs/export" },
+        "wordpress": { "$ref": "#/$defs/wordpressClient" },
+        "template": { "$ref": "#/$defs/template" },
+        "gs1_links": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/gs1Link" }
+        },
+        "qr": { "$ref": "#/$defs/qr" },
+        "flow": { "$ref": "#/$defs/flow" },
+        "process_list": { "$ref": "#/$defs/processList" },
+        "categories": { "$ref": "#/$defs/categories" },
+        "generator": { "$ref": "#/$defs/generator" },
+        "media": { "$ref": "#/$defs/media" }
+      }
+    }
+  }
+}

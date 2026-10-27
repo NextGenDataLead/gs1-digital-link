@@ -1,0 +1,31 @@
+{
+  "name": "@gs1-orchestrator/gs1-nl-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server wrapping the GS1 NL Digital Link API v2 (single upsert, bulk upsert, get). Built in Phase 2.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "gs1-nl-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}

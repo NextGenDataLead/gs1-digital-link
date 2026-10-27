@@ -1,0 +1,18 @@
+# Start the operator shell from the published image, with its data in a folder on this machine.
+#
+#   docker compose up -d        (or: podman compose up -d)
+#   then open http://127.0.0.1:8477
+#
+# GS1_DATA is the folder that holds this installation's data — .env, clients.yml, input/,
+# output/ and the state.json ledger of permanent GS1 writes. Set it once in a .env file beside
+# this compose.yml, or it defaults to ./gs1-data. Keep it backed up; it is the only copy.
+
+services:
+  shell:
+    image: ghcr.io/nextgendatalead/gs1-digital-link:${GS1_VERSION:-latest}
+    # Loopback only: the shell is reachable from this machine and nowhere else.
+    ports:
+      - "127.0.0.1:8477:8477"
+    volumes:
+      - ${GS1_DATA:-./gs1-data}:/data
+    restart: unless-stopped

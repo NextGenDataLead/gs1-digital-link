@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.NextGenDataLead/gs1-nl",
+  "description": "Register and read GS1 NL Digital Link records (upsert, bulk upsert, get) via API v2.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/NextGenDataLead/gs1-digital-link",
+    "source": "github",
+    "subfolder": "mcps/gs1-nl"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@gs1-orchestrator/gs1-nl-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GS1_CLIENTS_FILE",
+          "description": "Path to clients.yml. Defaults to ./clients.yml. The file names the environment variables holding the OAuth2 client_id/client_secret per environment \u2014 it never contains the secrets themselves.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

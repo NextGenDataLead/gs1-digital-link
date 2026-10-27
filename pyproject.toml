@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gs1-digital-link-orchestrator"
+version = "0.5.0"
+description = "Turn GS1 Data Source exports into GS1 Digital Link QR codes and WordPress product pages."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.6",
+    "openpyxl>=3.1",
+    "pyyaml>=6.0",
+    "qrcode[pil]>=7.4",
+    "pystache>=0.6",
+    "jsonschema>=4.21",
+    "python-dotenv>=1.0",
+    "fpdf2>=2.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-httpx>=0.30", "mypy>=1.9", "ruff>=0.4"]
+# The local operator shell (`python -m ui`). An extra rather than a dependency so `lib` stays
+# light: NiceGUI pulls FastAPI, uvicorn, pywebview and bundled Vue/Quasar assets, none of which
+# any publishing path touches. Nothing under lib/ or scripts/ imports it.
+# Bounded to one major version on purpose. It was `nicegui>=2.0`, and NiceGUI 3 replaced the
+# upload event's `content` with an awaitable `file` — which broke both of the shell's uploads
+# *silently*: the handler raised where NiceGUI logs it, the browser showed a completed upload,
+# and nothing was written. An unbounded major range on the one dependency the screens are
+# written against buys nothing that the lockfile does not already give.
+ui = ["nicegui>=3.0,<4", "pywebview>=5.0"]
+
+[project.urls]
+Homepage = "https://github.com/NextGenDataLead/gs1-digital-link"
+Repository = "https://github.com/NextGenDataLead/gs1-digital-link"
+
+[tool.setuptools]
+packages = ["lib", "scripts", "ui", "ui.pages"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "PL"]
+# PLR0917 (too-many-positional-args, added in ruff 0.16) fires on the orchestration functions that
+# already carry a deliberate `# noqa: PLR0913` — one explicit collaborator per step reads clearer than
+# bundling them into a context object. It is the same design decision, so ignore it project-wide.
+ignore = ["PLR0917"]
+
+[tool.ruff.lint.per-file-ignores]
+# Literal HTTP status codes and counts in assertions are clearer inline than as
+# named constants; magic-value linting is noise in tests.
+"tests/**" = ["PLR2004"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+
+[[tool.mypy.overrides]]
+module = ["openpyxl.*", "yaml.*", "jsonschema.*", "pystache.*", "qrcode.*", "nicegui.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Staging tests write to a live WordPress site and the GS1 production resolver, so they are
+# deselected by default rather than left to their env-var skipif: a shell that has sourced
+# .env satisfies that gate, which made a bare `pytest` hit production. An explicit
+# `pytest -m staging` overrides this, because a command-line -m replaces the one here.
+addopts = "-m 'not staging'"
+markers = [
+    "staging: integration tests that hit a live staging WordPress; skipped unless the staging env vars are set (run with `pytest -m staging`).",
+]
