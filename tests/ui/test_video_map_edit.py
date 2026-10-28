@@ -18,7 +18,7 @@ import pytest
 
 from lib.errors import VideoMapError
 from lib.media_video import load_video_map, state_of
-from lib.video_signoff import CHANGE, plan
+from lib.video_signoff import CHANGE, SignoffPlan, addable, plan
 from lib.xlsx import Grid
 from ui import video_map_edit
 
@@ -390,3 +390,39 @@ def test_a_filename_with_a_quote_in_it_is_written_as_that_file() -> None:
         (name, "02987653000893"),
         (name, "02987653007434"),
     ]
+
+
+def test_a_video_added_for_a_rejected_sheet_row_becomes_a_change(tmp_path: Path) -> None:
+    """The Data screen's *Add new video files* button, without the screen: the rejected row's
+    file gets a blank row, the sheet is read again, and its barcode is now a change to apply."""
+    path = tmp_path / "mapping.yml"
+    path.write_text(_MAPPING, encoding="utf-8")
+    sheet = Grid(["language", "file", "gtin"], [["nl", "New.mp4", "2987653008486"]])
+
+    def decided() -> SignoffPlan:
+        return plan(sheet, load_video_map(path), exported=set(), languages=["nl", "fr"])
+
+    before = decided()
+    missing = video_map_edit.files_missing_from_map(_MAPPING, {"nl": ["New.mp4"], "fr": []})
+    wanted = addable(before, missing)
+    assert wanted == {"nl": ["New.mp4"]}
+
+    text = video_map_edit.append_rows(_MAPPING, "nl", wanted["nl"])
+    video_map_edit.write_validated(path, text)
+
+    [row] = decided().rows
+    assert row.outcome == CHANGE
+    assert _rows(path.read_text(encoding="utf-8"))[("nl", "4-in-1 Lamp.mpg")] == ""
+
+
+def test_appended_rows_take_the_indent_of_the_rows_above_them(tmp_path: Path) -> None:
+    """A mapping written with its rows flush left (as the demo's is) stays valid YAML."""
+    flush = 'nl:\n- {file: A.mp4, gtin: ""}\nfr:\n- {file: B.mp4, gtin: ""}\n'
+    path = tmp_path / "mapping.yml"
+    path.write_text(flush, encoding="utf-8")
+
+    text = video_map_edit.append_rows(flush, "nl", ["New.mp4"])
+    video_map_edit.write_validated(path, text)
+
+    assert '- {file: "New.mp4", gtin: ""}' in text.splitlines()
+    assert ("nl", "New.mp4") in _rows(text)

@@ -627,6 +627,22 @@ def _decide(  # noqa: PLR0913 — one collaborator per question this row has to 
     return row(_PENDING, assigned)
 
 
+def addable(decided: SignoffPlan, missing: Mapping[str, Collection[str]]) -> dict[str, list[str]]:
+    """The sheet's rejected videos that a new mapping row would make importable, per language.
+
+    ``missing`` is what is in each language's video folder but not in the mapping
+    (:func:`ui.video_map_edit.files_missing_from_map`). A rejected row qualifies only when its
+    file is one of those: a filename the folder does not have is a typo, or a video not copied in
+    yet, and a row for it would be a row for nothing. Sheet order, each file once.
+    """
+    found: dict[str, list[str]] = {}
+    for row in decided.of(REJECTED):
+        names = found.setdefault(row.language, [])
+        if row.file in missing.get(row.language, ()) and row.file not in names:
+            names.append(row.file)
+    return {language: names for language, names in found.items() if names}
+
+
 def _unaddressable(
     language: str, file: str, known: Mapping[str, set[str]], languages: Collection[str]
 ) -> str:
@@ -672,6 +688,10 @@ def _coerce_cell(given: str) -> tuple[Assignment, str]:
     return tuple(sorted(found)), ""
 
 
+#: Marks put around a barcode to force it to text, stripped from its ends before it is read.
+_TEXT_MARKS: Final = "'`\u00b4\u2018\u2019\"\u201c\u201d"
+
+
 def _coerce(given: str) -> tuple[str, str]:
     """A barcode cell as ``(canonical GTIN or ``skip``, problem)``. One of the two is always empty.
 
@@ -690,7 +710,10 @@ def _coerce(given: str) -> tuple[str, str]:
     ``8.7132E+12`` in a narrow column, and a CSV round trip bakes that in. Told only "expected
     digits", somebody re-types the same cell and sends the same file back.
     """
-    value = given.strip()
+    # A mark typed in front of the barcode to keep Excel from reading it as a number: Excel's own
+    # apostrophe never reaches the file, but a backtick, a curly quote or an apostrophe another
+    # program kept does. Only at the ends — a mark inside the digits is still junk.
+    value = given.strip().strip(_TEXT_MARKS).strip()
     if value.lower() == SKIP:
         return SKIP, ""
     if re.fullmatch(r"\d(?:[.,]\d+)?[eE][+-]?\d+", value):

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-28
+
+### Added
+- **New videos are added to the mapping from the Data screen.** A video copied into its folder
+  after the mapping was made had no row in `mapping.yml`, so the sign-off sheet's barcode for it
+  was rejected and the only fix was editing that file by hand. A button now adds
+  a blank row for each rejected video that is really in its folder (a filename the folder does
+  not have is left rejected: it is a typo, or a video not copied in yet). It sits at the top of the
+  sheet's review, under the column choice, because every figure below it changes once those rows
+  exist. The sheet is then read again, and *Apply this sheet* writes its barcodes as before.
+
+### Fixed
+- **A barcode typed with a mark in front to keep Excel from reading it as a number** (a backtick,
+  an apostrophe another program kept, a curly quote) is read as the barcode in the sign-off sheet.
+  It was rejected as "not a barcode". Marks inside the digits are still refused.
+- Rows added to the mapping take the indent of the rows above them, so a mapping written flush
+  left stays valid.
+- The warning that a sheet would leave products with no video now shows in its warning style.
+
 ## [0.5.1] - 2026-10-28
 
 ### Changed
@@ -62,6 +81,7 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/NextGenDataLead/gs1-digital-link/releases/tag/v0.5.0

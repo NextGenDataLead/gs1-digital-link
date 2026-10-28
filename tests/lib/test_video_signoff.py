@@ -30,6 +30,7 @@ from lib.video_signoff import (
     REJECTED,
     UNCHANGED,
     Clash,
+    addable,
     column_options,
     columns,
     is_header,
@@ -737,3 +738,41 @@ def test_a_sheet_naming_a_clashing_barcode_on_one_video_solves_the_clash() -> No
     }
     assert context.new_clashes == frozenset()
     assert context.clashing_products == 0
+
+
+# --- videos the sheet names that the mapping has no row for ---------------------------------
+
+
+def test_addable_is_the_rejected_videos_that_are_in_their_folder() -> None:
+    """A row is offered only for a file that is really there: anything else is a typo."""
+    grid = _sheet(
+        ("nl", "New.mp4", _GTIN13),
+        ("nl", "Typo.mp4", _GTIN13),
+        ("nl", "New.mp4", _GTIN13),
+        ("fr", "Nouveau.mp4", "123"),
+        ("nl", "Glowbug.mpg", "123"),
+    )
+    decided = plan(grid, _map(), exported=_EXPORTED, languages=_LANGUAGES)
+    missing = {"nl": ["New.mp4", "Other.mp4"], "fr": ["Nouveau.mp4"]}
+
+    assert addable(decided, missing) == {"nl": ["New.mp4"], "fr": ["Nouveau.mp4"]}
+
+
+def test_addable_is_empty_when_nothing_was_rejected_for_its_filename() -> None:
+    decided = plan(
+        _sheet(("nl", "Glowbug.mpg", _GTIN13)), _map(), exported=_EXPORTED, languages=_LANGUAGES
+    )
+    assert addable(decided, {"nl": ["Glowbug.mpg"]}) == {}
+
+
+def test_a_mark_forcing_the_barcode_to_text_is_ignored() -> None:
+    """A backtick or a quote typed before the barcode, kept in the file: still the same product."""
+    for given in ("`2987653008486", "'2987653008486", "‘2987653008486’", '"2987653008486"'):
+        row = _only(_sheet(("nl", "Glowbug.mpg", given)), _map())
+        assert row.outcome == CHANGE, (given, row)
+        assert row.gtin == _GTIN14
+
+
+def test_a_mark_inside_the_barcode_is_still_refused() -> None:
+    row = _only(_sheet(("nl", "Glowbug.mpg", "29876`53008486")), _map())
+    assert row.outcome == REJECTED
