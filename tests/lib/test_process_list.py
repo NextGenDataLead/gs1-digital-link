@@ -463,11 +463,12 @@ def test_listed_addresses_are_keyed_by_gtin14_and_blank_cells_are_absent(tmp_pat
     }
 
 
-def test_a_configured_column_missing_from_the_file_is_refused(tmp_path: Path) -> None:
+def test_a_list_without_the_link_column_lists_no_addresses(tmp_path: Path) -> None:
+    """The column is optional on the Data screen: a list without it reads like one left blank."""
     path = _write_xlsx(tmp_path, [[None, None, GTIN13]])
 
-    with pytest.raises(ProcessListError, match="no 'Link naar site' column"):
-        load_listed_targets(_linked(path), _SITE)
+    assert load_listed_targets(_linked(path), _SITE) == {}
+    assert load_process_list(_linked(path)) == frozenset({GTIN14})
 
 
 @pytest.mark.parametrize(

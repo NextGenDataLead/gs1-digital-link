@@ -249,7 +249,9 @@ def load_listed_targets(config: ProcessListConfig, site_url: str) -> dict[str, s
 
     The one value this module interprets, and only when ``target_url_column`` names it — see
     :class:`~lib.config.ProcessListConfig` for why. A blank cell is simply absent from the
-    result, so a list where nobody filled the column behaves exactly as it did before.
+    result, so a list where nobody filled the column behaves exactly as it did before — and so
+    does a list without the column: the Data screen offers it as optional, and an operator who
+    picks no link column installs a list that has none.
 
     Everything that can be wrong with a cell is refused here, for the whole file at once,
     rather than per GTIN at run time: the address ends up as the target of a GS1 record that
@@ -266,19 +268,15 @@ def load_listed_targets(config: ProcessListConfig, site_url: str) -> dict[str, s
         ``{gtin14: url}`` for every row whose barcode and address are both filled.
 
     Raises:
-        ProcessListError: If the configured column is missing from the file, a cell is not an
-            absolute ``http(s)`` address on the site's host, or one GTIN is listed with two
-            different addresses.
+        ProcessListError: If a cell is not an absolute ``http(s)`` address on the site's host,
+            or one GTIN is listed with two different addresses.
     """
     column = config.target_url_column
     if column is None:
         return {}
     sheet = read_process_list(config)
     if column not in sheet.header:
-        raise ProcessListError(
-            f"process list at {config.path} has no {column!r} column, which "
-            f"process_list.target_url_column names — rename the column or the setting"
-        )
+        return {}
     index = sheet.header.index(column)
     site_host = (urlsplit(site_url).hostname or "").lower()
     targets: dict[str, str] = {}

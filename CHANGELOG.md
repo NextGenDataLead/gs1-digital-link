@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-10-28
+
+### Fixed
+- **A product selection list without the *Link naar site* column is accepted.** The Data screen
+  offers that column as optional, but when `clients.yml` names it, the run refused a list that
+  did not have it ("has no 'Link naar site' column"). A list without it now reads like one where
+  every link is blank: in a links run, each product points at the page this tool published.
+
 ## [0.5.2] - 2026-10-28
 
 ### Added
@@ -81,7 +89,8 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/NextGenDataLead/gs1-digital-link/releases/tag/v0.5.0
