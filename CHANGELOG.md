@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-28
+
 ### Changed
 - **Preflight fails when a client with published pages has no page templates of its own.** The
   *Prompt and templates* line used to say "the built-in page templates apply" and move on, so a
@@ -60,5 +62,6 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/NextGenDataLead/gs1-digital-link/releases/tag/v0.5.0
