@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-28
+
 ### Added
 - **New videos are added to the mapping from the Data screen.** A video copied into its folder
   after the mapping was made had no row in `mapping.yml`, so the sign-off sheet's barcode for it
@@ -74,6 +76,7 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/NextGenDataLead/gs1-digital-link/releases/tag/v0.5.0
