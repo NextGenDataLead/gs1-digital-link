@@ -1398,6 +1398,65 @@ def test_client_files_na_without_any_of_the_clients_own(tmp_path: Path) -> None:
     assert result.status is Status.NA
 
 
+def _ledger(data: Path, text: str) -> None:
+    path = data / "output" / "acme" / "state.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+_ONE_PAGE = State(
+    client_id="acme",
+    entries={
+        "02987653000017": {
+            "nl": StateEntry(
+                wp_page_id=1,
+                wp_url="https://example.test/p/",
+                wp_featured_media_id=None,
+                content_hash="c" * 64,
+                gs1_link_set_hash="g" * 64,
+                last_run=datetime(2026, 10, 1, tzinfo=UTC),
+            )
+        }
+    },
+).model_dump_json()
+
+
+def test_client_files_fail_when_published_pages_have_no_templates(tmp_path: Path) -> None:
+    """A release without the client's templates would rebuild its live pages in the default."""
+    code, data = tmp_path / "code", tmp_path / "data"
+    _client_file(data, "input", "acme", "prompts", "generation.v1.md")
+    _ledger(data, _ONE_PAGE)
+
+    result = check_client_files(_make_config(), data_root=data, code_root=code)
+
+    assert result.status is Status.FAIL
+    assert "built-in layout" in result.detail
+    assert result.remedy and "input/acme/templates" in result.remedy
+
+
+def test_client_files_fail_when_the_ledger_cannot_be_read(tmp_path: Path) -> None:
+    code, data = tmp_path / "code", tmp_path / "data"
+    _ledger(data, "{not json")
+    result = check_client_files(_make_config(), data_root=data, code_root=code)
+    assert result.status is Status.FAIL
+
+
+def test_client_files_na_with_an_empty_ledger_and_no_templates(tmp_path: Path) -> None:
+    """Nothing published yet, so the built-in layout replaces nothing."""
+    code, data = tmp_path / "code", tmp_path / "data"
+    _ledger(data, State(client_id="acme", entries={}).model_dump_json())
+    result = check_client_files(_make_config(), data_root=data, code_root=code)
+    assert result.status is Status.NA
+
+
+def test_client_files_ok_with_published_pages_and_the_templates_in_place(tmp_path: Path) -> None:
+    code, data = tmp_path / "code", tmp_path / "data"
+    _client_file(data, "input", "acme", "templates", "product.nl.html")
+    _ledger(data, _ONE_PAGE)
+    result = check_client_files(_make_config(), data_root=data, code_root=code)
+    assert result.status is Status.OK
+
+
 def test_client_files_na_in_a_development_clone(tmp_path: Path) -> None:
     _client_file(tmp_path, "prompts", "acme", "generation.v1.md")
     result = check_client_files(_make_config(), data_root=tmp_path, code_root=tmp_path)
