@@ -688,6 +688,10 @@ def _coerce_cell(given: str) -> tuple[Assignment, str]:
     return tuple(sorted(found)), ""
 
 
+#: Marks put around a barcode to force it to text, stripped from its ends before it is read.
+_TEXT_MARKS: Final = "'`\u00b4\u2018\u2019\"\u201c\u201d"
+
+
 def _coerce(given: str) -> tuple[str, str]:
     """A barcode cell as ``(canonical GTIN or ``skip``, problem)``. One of the two is always empty.
 
@@ -706,7 +710,10 @@ def _coerce(given: str) -> tuple[str, str]:
     ``8.7132E+12`` in a narrow column, and a CSV round trip bakes that in. Told only "expected
     digits", somebody re-types the same cell and sends the same file back.
     """
-    value = given.strip()
+    # A mark typed in front of the barcode to keep Excel from reading it as a number: Excel's own
+    # apostrophe never reaches the file, but a backtick, a curly quote or an apostrophe another
+    # program kept does. Only at the ends — a mark inside the digits is still junk.
+    value = given.strip().strip(_TEXT_MARKS).strip()
     if value.lower() == SKIP:
         return SKIP, ""
     if re.fullmatch(r"\d(?:[.,]\d+)?[eE][+-]?\d+", value):

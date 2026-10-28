@@ -254,8 +254,8 @@ _PLAN_SECTIONS: Final = (
         "Each of these says what is wrong with it, and the rest of the sheet is applied without "
         "it. A barcode problem is fixed in the sheet and the file uploaded again. An unknown "
         "filename usually means the mapping has no row for that video yet: when the file is in "
-        "its video folder, the button below adds the row; when it is not, check the spelling, or "
-        "copy the video into the folder first.",
+        "its video folder, the Add button above adds the row; when it is not, check the spelling, "
+        "or copy the video into the folder first.",
     ),
 )
 
@@ -288,6 +288,9 @@ def _plan_view(  # noqa: PLR0913 — the plan, the file it writes, and what it i
         return
     rejected = len(decided.of(video_signoff.REJECTED))
     blank = len(decided.of(video_signoff.BLANK))
+    # First, right under the column choice: every figure below changes once these rows exist, and
+    # on a long sheet the Rejected table they come from is far down the page.
+    _add_new_files(decided, session, applied, replan, on_disk)
     with theme.figures():
         theme.figure(
             str(len(decided.changes)),
@@ -326,7 +329,7 @@ def _plan_view(  # noqa: PLR0913 — the plan, the file it writes, and what it i
             + ", ".join(f"{gtin} ({language})" for language, gtin in decided.losing)
             + ". A page that is already live keeps the video it has — the tool can put a video "
             "on a page, not take one off. Remove it in WordPress if it should go.",
-            "warning",
+            "warn",
         )
     if context.clashes:
         _clash_table(context.clashes, context.resolved)
@@ -334,8 +337,6 @@ def _plan_view(  # noqa: PLR0913 — the plan, the file it writes, and what it i
         rows = decided.of(outcome)
         if rows:
             _plan_table(title.format(n=len(rows)), note, rows)
-            if outcome == video_signoff.REJECTED:
-                _add_new_files(decided, session, applied, replan, on_disk)
 
     changes = decided.edits
     if not changes:
@@ -408,7 +409,7 @@ def _add_new_files(
     replan: Callable[[], video_signoff.SignoffPlan],
     on_disk: Callable[[], dict[str, list[str]]],
 ) -> None:
-    """Under *Rejected*: give the videos the sheet names, and the mapping lacks, a row each.
+    """Give the videos the sheet names, and the mapping lacks, a row each — before anything else.
 
     A video copied into its folder after the mapping was drafted has no row, so the sheet's
     barcode for it is rejected and nothing on this screen could add one — the operator had to
@@ -421,10 +422,12 @@ def _add_new_files(
     count = sum(len(files) for files in wanted.values())
     if not count:
         return
-    ui.label(
-        f"{count} of these are in the video folders but have no row in the mapping yet. Adding "
-        "them gives each a blank row; this sheet's barcodes for them can then be applied below."
-    ).classes("note mt-2")
+    theme.band(
+        f"{count} video(s) this sheet names are in the video folders but have no row in the "
+        "mapping yet, so their rows are rejected (see Rejected below). Add them first: each gets "
+        "a blank row, the sheet is read again, and its barcodes for them can then be applied.",
+        "warn",
+    )
 
     def add() -> None:
         # Re-read and re-derived now, like Apply: the file or the folders may have changed since
