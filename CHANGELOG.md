@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Preflight fails when a client with published pages has no page templates of its own.** The
+  *Prompt and templates* line used to say "the built-in page templates apply" and move on, so a
+  release installed before the client's templates reached the data folder would rebuild its live
+  pages in the default layout without a word. It now stops the run and says where the templates
+  belong. A client that really uses the built-in layout copies `templates/_default` there.
+
 ## [0.5.0] - 2026-10-26
 
 ### Changed

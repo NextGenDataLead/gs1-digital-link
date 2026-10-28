@@ -83,7 +83,8 @@ pack** on the machine that has them, received on **Setup → Receive a handover 
 The pack also carries the client's own **voice prompt and page templates**, from
 `input/{client}/prompts` and `input/{client}/templates`, so a release that does not ship them still
 writes copy and pages the client's way. Preflight's *Prompt and templates* line says where this
-machine reads them from.
+machine reads them from, and **fails** when a client that has published pages has no templates of
+its own: a pages run would otherwise rebuild those pages in the built-in layout.
 
 Never copy `state.json` across by hand: the pack is what checks it is not older than the one here.
 

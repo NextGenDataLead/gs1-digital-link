@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import jsonschema
+from pydantic import ValidationError
 
 from lib import client_files
 from lib.batch import Chosen, in_force
@@ -74,8 +75,8 @@ from lib.media_video import (
 )
 from lib.process_list import load_process_list
 from lib.provenance import history_path, read
-from lib.records import ProductRecord, SkipReason
-from lib.state import WILL_BE_WRITTEN, classify_units, keeps_live_copy, peek_state
+from lib.records import ProductRecord, SkipReason, State
+from lib.state import WILL_BE_WRITTEN, classify_units, keeps_live_copy, peek_state, state_path
 from lib.video_status import VideoStatus, video_status
 from lib.wp_client import WordPressClient, WordPressIdentity
 
@@ -1008,6 +1009,10 @@ def check_client_files(
     A warning when either comes only from the program folder: it still works, but those files
     are not in a handover pack, and a release that does not ship them would leave this client
     with no voice and the default page layout.
+
+    A failure when a client that has published pages has no templates of its own anywhere: the
+    next pages run would rebuild its live pages in the built-in layout, and nothing else would
+    say so. That is a release installed before the client's templates reached the data folder.
     """
     title = "Prompt and templates"
     if code_root.resolve() == data_root.resolve():
@@ -1016,6 +1021,20 @@ def check_client_files(
         client_files.locate(cfg.client_id, kind, data_root=data_root, code_root=code_root)
         for kind in (client_files.PROMPTS, client_files.TEMPLATES)
     ]
+    templates = found[1]
+    if templates.where == "none" and _has_published(cfg.client_id, data_root):
+        return CheckResult(
+            "client_files",
+            title,
+            Status.FAIL,
+            f"{cfg.client_id} has published pages, but no page templates of its own, in the data "
+            f"folder (input/{cfg.client_id}/templates) or the program folder: a pages run would "
+            "rebuild them in the built-in layout",
+            remedy=f"Put the client's templates in input/{cfg.client_id}/templates in the data "
+            "folder: run the installer of a release that ships them (it copies them there), or "
+            "receive a handover pack that carries them. If this client really uses the built-in "
+            f"layout, copy the program folder's templates/{client_files.DEFAULT_TEMPLATES} there.",
+        )
     present = [source for source in found if source.where != "none"]
     if not present:
         return CheckResult(
@@ -1042,6 +1061,21 @@ def check_client_files(
         f"overwrites), or copy prompts/{cfg.client_id} to input/{cfg.client_id}/prompts and "
         f"templates/{cfg.client_id} to input/{cfg.client_id}/templates in the data folder.",
     )
+
+
+def _has_published(client_id: str, data_root: Path) -> bool:
+    """Whether the client's ledger records any page. Read only, like :func:`peek_state`.
+
+    A ledger that cannot be read counts as published: this answer decides whether a run may go.
+    """
+    path = data_root / state_path(client_id)
+    if not path.is_file():
+        return False
+    try:
+        state = State.model_validate_json(path.read_bytes())
+    except (OSError, ValidationError):
+        return True
+    return bool(state.entries)
 
 
 #: How many differing files the clone warning names before "and N more".
