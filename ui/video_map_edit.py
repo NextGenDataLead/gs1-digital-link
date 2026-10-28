@@ -306,8 +306,11 @@ def append_rows(text: str, language: str, files: list[str]) -> str:
         return text
 
     lines = text.splitlines()
-    new_rows = [f'{_ROW_INDENT}- {{file: {_quoted(name)}, gtin: ""}}' for name in wanted]
     at = _end_of_language(lines, language)
+    # The block's own indent: a row indented differently from the ones above it is not YAML.
+    last = _ITEM_RE.match(lines[at - 1]) if at else None
+    indent = last.group(1) if last else f"{_ROW_INDENT}- "
+    new_rows = [f'{indent}{{file: {_quoted(name)}, gtin: ""}}' for name in wanted]
     if at is None:
         lines.extend([f"{language}:", *new_rows])
     else:

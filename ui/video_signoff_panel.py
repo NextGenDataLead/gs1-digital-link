@@ -20,8 +20,8 @@ from nicegui import events, ui
 from lib import video_signoff, video_signoff_archive, xlsx
 from lib.config import ClientConfig
 from lib.errors import VideoMapError
-from lib.media_video import load_video_map
-from ui import context, theme
+from lib.media_video import files_by_language, load_video_map
+from ui import DATA_ROOT, context, theme, video_map_edit
 from ui.video_map_panel import MappingSession
 
 
@@ -220,7 +220,9 @@ def _columns_then_plan(  # noqa: PLR0913 — the sheet, where it goes, and what 
                 applied()
                 redraw()  # the plan now describes the file after the changes: nothing left to apply
 
-            _plan_view(replan(), session, done, replan, cfg.wordpress.languages)
+            _plan_view(
+                replan(), session, done, replan, cfg.wordpress.languages, lambda: _on_disk(cfg)
+            )
 
     for select in chosen.values():
         select.on_value_change(redraw)
@@ -250,19 +252,21 @@ _PLAN_SECTIONS: Final = (
         video_signoff.REJECTED,
         "Rejected ({n})",
         "Each of these says what is wrong with it, and the rest of the sheet is applied without "
-        "it. A barcode problem is fixed in the sheet and the file uploaded again; an unknown "
-        "filename usually means the mapping has no row for that video yet — add a row for it to "
-        "the mapping file (videos/mapping.yml).",
+        "it. A barcode problem is fixed in the sheet and the file uploaded again. An unknown "
+        "filename usually means the mapping has no row for that video yet: when the file is in "
+        "its video folder, the button below adds the row; when it is not, check the spelling, or "
+        "copy the video into the folder first.",
     ),
 )
 
 
-def _plan_view(
+def _plan_view(  # noqa: PLR0913 — the plan, the file it writes, and what it is checked against
     decided: video_signoff.SignoffPlan,
     session: MappingSession,
     applied: Callable[[], None],
     replan: Callable[[], video_signoff.SignoffPlan],
     languages: list[str],
+    on_disk: Callable[[], dict[str, list[str]]],
 ) -> None:
     """What the sheet would do, then the button that does it.
 
@@ -330,6 +334,8 @@ def _plan_view(
         rows = decided.of(outcome)
         if rows:
             _plan_table(title.format(n=len(rows)), note, rows)
+            if outcome == video_signoff.REJECTED:
+                _add_new_files(decided, session, applied, replan, on_disk)
 
     changes = decided.edits
     if not changes:
@@ -382,6 +388,74 @@ def _plan_view(
         )
 
     theme.action(f"Apply this sheet — {len(changes)} video(s) change", apply)
+
+
+def _on_disk(cfg: ClientConfig) -> dict[str, list[str]]:
+    """The files in each language's video folder, resolved against the data folder."""
+    folders = cfg.media.video_folders if cfg.media is not None else {}
+    return files_by_language(
+        {
+            language: str(Path(folder) if Path(folder).is_absolute() else DATA_ROOT / folder)
+            for language, folder in folders.items()
+        }
+    )
+
+
+def _add_new_files(
+    decided: video_signoff.SignoffPlan,
+    session: MappingSession,
+    applied: Callable[[], None],
+    replan: Callable[[], video_signoff.SignoffPlan],
+    on_disk: Callable[[], dict[str, list[str]]],
+) -> None:
+    """Under *Rejected*: give the videos the sheet names, and the mapping lacks, a row each.
+
+    A video copied into its folder after the mapping was drafted has no row, so the sheet's
+    barcode for it is rejected and nothing on this screen could add one — the operator had to
+    edit ``mapping.yml`` by hand. This adds blank rows only (:func:`video_map_edit.append_rows`,
+    which never touches an existing one), and only for files that are in the folder; the plan is
+    then drawn again, and the sheet's barcodes for them are applied by its own button.
+    """
+    missing = video_map_edit.files_missing_from_map(session.text, on_disk())
+    wanted = video_signoff.addable(decided, missing)
+    count = sum(len(files) for files in wanted.values())
+    if not count:
+        return
+    ui.label(
+        f"{count} of these are in the video folders but have no row in the mapping yet. Adding "
+        "them gives each a blank row; this sheet's barcodes for them can then be applied below."
+    ).classes("note mt-2")
+
+    def add() -> None:
+        # Re-read and re-derived now, like Apply: the file or the folders may have changed since
+        # the plan was drawn, and a row is never added for a file that is no longer there.
+        session.reload()
+        if session.problem is not None:
+            theme.notify_problem(session.problem)
+            return
+        now = video_signoff.addable(
+            replan(), video_map_edit.files_missing_from_map(session.text, on_disk())
+        )
+        if not now:
+            theme.notify_warning("Nothing left to add — the mapping already has these videos.")
+            applied()
+            return
+        text = session.text
+        for language, files in now.items():
+            text = video_map_edit.append_rows(text, language, files)
+        backup = session.write(text)
+        if backup is None:
+            return
+        applied()
+        added = sum(len(files) for files in now.values())
+        theme.announce(
+            f"{added} video file(s) added to the mapping",
+            f"Each has a blank row now. The previous version of the mapping is kept beside it as "
+            f"{backup.name}. The sheet has been read again: its barcodes for these videos are "
+            "under What the mapping would become, and Apply this sheet writes them.",
+        )
+
+    theme.action(f"Add {count} new video file(s) to the mapping", add)
 
 
 def _changes_table(changes: tuple[video_signoff.FileChange, ...]) -> None:

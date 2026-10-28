@@ -627,6 +627,22 @@ def _decide(  # noqa: PLR0913 — one collaborator per question this row has to 
     return row(_PENDING, assigned)
 
 
+def addable(decided: SignoffPlan, missing: Mapping[str, Collection[str]]) -> dict[str, list[str]]:
+    """The sheet's rejected videos that a new mapping row would make importable, per language.
+
+    ``missing`` is what is in each language's video folder but not in the mapping
+    (:func:`ui.video_map_edit.files_missing_from_map`). A rejected row qualifies only when its
+    file is one of those: a filename the folder does not have is a typo, or a video not copied in
+    yet, and a row for it would be a row for nothing. Sheet order, each file once.
+    """
+    found: dict[str, list[str]] = {}
+    for row in decided.of(REJECTED):
+        names = found.setdefault(row.language, [])
+        if row.file in missing.get(row.language, ()) and row.file not in names:
+            names.append(row.file)
+    return {language: names for language, names in found.items() if names}
+
+
 def _unaddressable(
     language: str, file: str, known: Mapping[str, set[str]], languages: Collection[str]
 ) -> str:

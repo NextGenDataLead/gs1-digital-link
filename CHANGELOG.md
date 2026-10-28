@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **New videos are added to the mapping from the Data screen.** A video copied into its folder
+  after the mapping was made had no row in `mapping.yml`, so the sign-off sheet's barcode for it
+  was rejected and the only fix was editing that file by hand. Under *Rejected*, a button now adds
+  a blank row for each rejected video that is really in its folder (a filename the folder does
+  not have is left rejected: it is a typo, or a video not copied in yet). The sheet is then read
+  again, and *Apply this sheet* writes its barcodes as before.
+
+### Fixed
+- Rows added to the mapping take the indent of the rows above them, so a mapping written flush
+  left stays valid.
+
 ## [0.5.1] - 2026-10-28
 
 ### Changed
