@@ -282,6 +282,53 @@ def test_one_field_name_declared_in_both_maps_is_refused_at_load(tmp_path: Path)
         load_clients(path)
 
 
+def test_a_fallback_attribute_counts_as_reading_that_attribute(tmp_path: Path) -> None:
+    """A field falling back to 3297 reads 3297 — so nothing else may read it under another name.
+
+    Otherwise the duplicate this check exists to stop comes back through the side door: the
+    products without 3309 would carry their 3297 value twice, as the title and as the extra.
+    """
+    client = _base_client()
+    client["export"] = {
+        "format": "gdsn",
+        "path": "x.xlsx",
+        "gdsn_map": {
+            "product_name": {
+                "sheet": "TradeItemDescription",
+                "attribute": "3309",
+                "fallback_attribute": "3297",
+                "localised": True,
+            }
+        },
+        "gdsn_extras": {"logistics_name": {"sheet": "TradeItemDescription", "attribute": "3297"}},
+    }
+    path = _write_config(tmp_path, client)
+
+    with pytest.raises(ExportParseError, match="product_name.*logistics_name.*3297"):
+        load_clients(path)
+
+
+def test_a_fallback_attribute_is_accepted_and_kept(tmp_path: Path) -> None:
+    """The schema refuses unknown keys, so the new one has to be declared there to load at all."""
+    client = _base_client()
+    client["export"] = {
+        "format": "gdsn",
+        "path": "x.xlsx",
+        "gdsn_map": {
+            "product_name": {
+                "sheet": "TradeItemDescription",
+                "attribute": "3309",
+                "fallback_attribute": "3297",
+                "localised": True,
+            }
+        },
+    }
+    path = _write_config(tmp_path, client)
+
+    source = load_clients(path)["acme"].export.gdsn_map["product_name"]
+    assert (source.attribute, source.fallback_attribute) == ("3309", "3297")
+
+
 def test_one_attribute_number_on_two_sheets_is_not_a_duplicate(tmp_path: Path) -> None:
     """GDSN attribute numbers are only unique within a sheet, so the sheet is half the identity.
 

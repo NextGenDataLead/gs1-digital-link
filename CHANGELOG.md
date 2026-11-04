@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-11-04
+
+### Added
+- **A field can fall back to a second attribute: `fallback_attribute`.** A source in `gdsn_map`
+  or `gdsn_extras` may name a second attribute on the same sheet, read only where the first is
+  empty in every target market — per language, so the preferred attribute wins wherever it is
+  filled. Made for the page title: read it from 3309 *Commerciële benaming* (the web name) and
+  keep 3297 for the products whose 3309 is not filled yet, instead of failing the parse for them.
+  Set it in `clients.yml` as `attribute: "3309", fallback_attribute: "3297"`.
+- **The data-quality report lists every value taken from a fallback** (new §4d, plus a summary
+  row), with the value the page shows now and the attribute to fill in MyGS1. Nothing there holds
+  a product. The coverage matrix heads such a column with both numbers (`product·3309/3297`), and
+  a held product's missing-data line names both attributes. The complete report's
+  *What to do, by who* counts them as a job for the client in MyGS1.
+
 ## [0.5.3] - 2026-10-28
 
 ### Fixed

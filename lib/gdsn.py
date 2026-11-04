@@ -32,6 +32,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from functools import partial
 from typing import Final, NamedTuple
 
 import openpyxl
@@ -147,12 +148,22 @@ class GdsnSource(BaseModel):
             already carries is translation, not invention; a field blank in **every** language is
             never filled, and stays a source finding (E23). Each filled value is reported for
             the operator to put back into MyGS1 — see :func:`lib.generator.translation_gaps`.
+        fallback_attribute: A second attribute on the same sheet, read only where ``attribute``
+            is empty in **every** market — decided per language, so a value of ``attribute`` in
+            the lowest-ranked market still beats one of the fallback in the highest: the
+            question is which attribute the client meant, not which market answered first. Each
+            value taken from it is reported (``value_from_fallback``) so the client can see what
+            is still to fill in MyGS1; a language blank in both is an ordinary ``value_blank``.
+            Exists for Noviplast's title (2026-11-04): 3309 *Commerciële benaming* is the web
+            name, filled for the published products only, and 3297 keeps every other product on
+            the name it had. Empty (the default) means no fallback.
     """
 
     model_config = ConfigDict(frozen=True)
 
     sheet: str
     attribute: str = ""
+    fallback_attribute: str = ""
     localised: bool = False
     multivalue: bool = False
     with_unit: bool = False
@@ -174,6 +185,29 @@ class GdsnSource(BaseModel):
                 "not both"
             )
         return self
+
+    @model_validator(mode="after")
+    def _fallback_can_apply(self) -> GdsnSource:
+        """A fallback needs an attribute to stand in for, and must be a different one."""
+        if not self.fallback_attribute:
+            return self
+        if not self.attribute or self.primary_file:
+            raise ValueError("fallback_attribute needs an attribute to fall back from")
+        if self.fallback_attribute == self.attribute:
+            raise ValueError("fallback_attribute must differ from attribute")
+        return self
+
+    @property
+    def attributes(self) -> tuple[str, ...]:
+        """Every attribute this source reads, preferred first — what config and the sheet check."""
+        return tuple(a for a in (self.attribute, self.fallback_attribute) if a)
+
+    @property
+    def attribute_label(self) -> str:
+        """``3309, else 3297`` — the attribute in the words a report shows an operator."""
+        if self.fallback_attribute:
+            return f"{self.attribute}, else {self.fallback_attribute}"
+        return self.attribute
 
 
 # --- Column / sheet models ---------------------------------------------------
@@ -525,15 +559,19 @@ def _validate_sources(
         if field == "gtin":
             continue
         sheet = workbook.get(src.sheet)
-        missing = sheet is None or (
-            not src.primary_file and bool(src.attribute) and not sheet.has_attribute(src.attribute)
+        # A fallback column is checked like the main one: a typo in it would otherwise pass here
+        # and only show as titles that never fall back — a blank page title on the products the
+        # fallback exists for.
+        absent = (
+            [src.attribute or src.sheet]
+            if sheet is None
+            else [a for a in src.attributes if not src.primary_file and not sheet.has_attribute(a)]
         )
-        if not missing:
-            continue
-        detail = (
-            f"field {field!r}: source sheet {src.sheet!r}/attribute {src.attribute!r} not found"
-        )
-        (errors if field in REQUIRED_FIELDS else warnings).append(detail)
+        for attribute in absent:
+            detail = (
+                f"field {field!r}: source sheet {src.sheet!r}/attribute {attribute!r} not found"
+            )
+            (errors if field in REQUIRED_FIELDS else warnings).append(detail)
     return warnings, errors
 
 
@@ -769,7 +807,7 @@ def source_label(src: GdsnSource) -> str:
     the operator searches MyGS1 by the attribute, and two spellings of one attribute in one
     report is two things to learn.
     """
-    return f"{src.sheet} attr {src.attribute}" if src.attribute else src.sheet
+    return f"{src.sheet} attr {src.attribute_label}" if src.attribute else src.sheet
 
 
 #: Letter patterns near-absent from the *other* language, so their presence in a value declared
@@ -802,6 +840,9 @@ def suspect_language(value: str, lang: str) -> str | None:
         return "French"
     return None
 
+
+#: The issue kind for a value read from a source's ``fallback_attribute`` (report §4d).
+FALLBACK_ISSUE: Final = "value_from_fallback"
 
 #: The issue kind for marketing text far shorter in one language than another.
 THIN_TEXT_ISSUE: Final = "value_thin_in_one_language"
@@ -926,16 +967,60 @@ def _multivalue_picker(
     return pick
 
 
-def _scalar_picker(sheet: GdsnSheet, gtin: str, src: GdsnSource) -> Callable[[str], str | None]:
+def _scalar_picker(
+    sheet: GdsnSheet, gtin: str, src: GdsnSource, attribute: str
+) -> Callable[[str], str | None]:
     """The single- or every-slot picker for a language-agnostic source, per its ``multivalue``.
 
     One function because both language-agnostic resolvers — the mapped field and the pass-through
     extra — need the same choice, and letting them each spell it out is how ``multivalue`` came to
-    mean one thing on one path and nothing on the others.
+    mean one thing on one path and nothing on the others. ``attribute`` is passed rather than read
+    from ``src`` so the same choice serves its ``fallback_attribute``.
     """
     if src.multivalue:
-        return _multivalue_scalar_picker(sheet, gtin, src.attribute, src.with_unit)
-    return lambda market: sheet.pick_scalar(gtin, market, src.attribute, src.with_unit)
+        return _multivalue_scalar_picker(sheet, gtin, attribute, src.with_unit)
+    return lambda market: sheet.pick_scalar(gtin, market, attribute, src.with_unit)
+
+
+def _language_picker(
+    sheet: GdsnSheet, gtin: str, src: GdsnSource, attribute: str, lang: str
+) -> Callable[[str], str | None]:
+    """The single- or every-slot picker for one language of a localised source."""
+    if src.multivalue:
+        return _multivalue_picker(sheet, gtin, attribute, lang)
+    return _localised_picker(sheet, gtin, attribute, lang)
+
+
+class _Ranked(NamedTuple):
+    """What :func:`_pick_with_fallback` found: the value, its markets, and which attribute."""
+
+    chosen: str | None
+    per_market: dict[str, str]
+    from_fallback: bool
+
+
+def _pick_with_fallback(
+    picker_for: Callable[[str], Callable[[str], str | None]],
+    src: GdsnSource,
+    market_priority: list[str],
+) -> _Ranked:
+    """Rank ``src.attribute`` across every market, then its fallback if that found nothing.
+
+    The **only** place the fallback rule lives, so the mapped field, the localised field and both
+    kinds of pass-through extra cannot come to disagree about it — the shape ``multivalue`` had
+    in #96. The fallback is consulted only after *every* market came back empty for the preferred
+    attribute: a value the client put in the attribute they meant wins wherever it sits.
+
+    Args:
+        picker_for: Builds the single-market picker for one attribute.
+        src: The source; ``fallback_attribute`` empty means there is nothing to fall back to.
+        market_priority: Market codes in the order to consult them.
+    """
+    chosen, per_market = _pick_ranked(picker_for(src.attribute), market_priority)
+    if chosen is not None or not src.fallback_attribute:
+        return _Ranked(chosen, per_market, from_fallback=False)
+    chosen, per_market = _pick_ranked(picker_for(src.fallback_attribute), market_priority)
+    return _Ranked(chosen, per_market, from_fallback=chosen is not None)
 
 
 def _multivalue_scalar_picker(
@@ -1035,6 +1120,31 @@ def _report_blank(where: _Where, acc: _Accumulator) -> None:
     _log.warning("%s for %s %s", where.field, where.gtin, detail)
 
 
+def _report_fallback(where: _Where, src: GdsnSource, value: str, acc: _Accumulator) -> None:
+    """Report a value taken from ``fallback_attribute`` because ``attribute`` was empty everywhere.
+
+    Not a defect in the value — the page shows a real name from the client's own data — but a
+    choice the client has not made yet: the preferred attribute is where they set this value
+    deliberately, and until they do the page shows whatever the fallback carried.
+    """
+    detail = (
+        f"has no value in attr {src.attribute} in any target market, so the tool used attr "
+        f"{src.fallback_attribute} ({value!r}) — fill attr {src.attribute} in MyGS1 to set it"
+    )
+    acc.warnings.append(f"{where.field} for {where.gtin} {detail}")
+    acc.issues.append(
+        SourceIssue(
+            gtin=where.gtin,
+            field=where.field,
+            source=where.source,
+            issue=FALLBACK_ISSUE,
+            value=value,
+            detail=detail,
+        )
+    )
+    _log.info("%s for %s %s", where.field, where.gtin, detail)
+
+
 def _resolve_field(
     ctx: _BuildContext, field: str, src: GdsnSource, gtin: str, acc: _Accumulator
 ) -> None:
@@ -1062,17 +1172,16 @@ def _resolve_localised(  # noqa: PLR0913 — one collaborator per step; bundling
     """Resolve a per-language field across ranked markets, reporting blanks and conflicts."""
     values: dict[str, str] = {}
     for lang in ctx.languages:
-        picker = (
-            _multivalue_picker(sheet, gtin, src.attribute, lang)
-            if src.multivalue
-            else _localised_picker(sheet, gtin, src.attribute, lang)
+        ranked = _pick_with_fallback(
+            partial(_language_picker, sheet, gtin, src, lang=lang), src, ctx.market_priority
         )
-        chosen, per_market = _pick_ranked(picker, ctx.market_priority)
         where = _Where(f"{field}.{lang}", source_label(src), gtin)
         if src.report_issues:
-            _report_inconsistency(per_market, where, acc)
-        if chosen is not None:
-            values[lang] = _apply_checks(chosen, src, f"{field}.{lang}", gtin, acc)
+            _report_inconsistency(ranked.per_market, where, acc)
+        if ranked.chosen is not None:
+            values[lang] = _apply_checks(ranked.chosen, src, f"{field}.{lang}", gtin, acc)
+            if ranked.from_fallback and src.report_issues:
+                _report_fallback(where, src, values[lang], acc)
         elif src.report_issues:
             _report_blank(where, acc)
     if values:
@@ -1083,15 +1192,16 @@ def _resolve_scalar(  # noqa: PLR0913 — one collaborator per step; bundling hi
     ctx: _BuildContext, sheet: GdsnSheet, field: str, src: GdsnSource, gtin: str, acc: _Accumulator
 ) -> None:
     """Resolve a language-agnostic field from the highest-priority market that carries it."""
-    chosen, per_market = _pick_ranked(
-        _scalar_picker(sheet, gtin, src),
-        ctx.market_priority,
+    ranked = _pick_with_fallback(
+        partial(_scalar_picker, sheet, gtin, src), src, ctx.market_priority
     )
     where = _Where(field, source_label(src), gtin)
     if src.report_issues:
-        _report_inconsistency(per_market, where, acc)
-    if chosen is not None:
-        acc.scalars[field] = _apply_checks(chosen, src, field, gtin, acc)
+        _report_inconsistency(ranked.per_market, where, acc)
+    if ranked.chosen is not None:
+        acc.scalars[field] = _apply_checks(ranked.chosen, src, field, gtin, acc)
+        if ranked.from_fallback and src.report_issues:
+            _report_fallback(where, src, acc.scalars[field], acc)
     elif src.report_issues:
         _report_blank(where, acc)
 
@@ -1133,12 +1243,9 @@ def _resolve_localised_extra(
         return None
     values: dict[str, str] = {}
     for lang in ctx.languages:
-        picker = (
-            _multivalue_picker(sheet, gtin, src.attribute, lang)
-            if src.multivalue
-            else _localised_picker(sheet, gtin, src.attribute, lang)
-        )
-        chosen, _ = _pick_ranked(picker, ctx.market_priority)
+        chosen = _pick_with_fallback(
+            partial(_language_picker, sheet, gtin, src, lang=lang), src, ctx.market_priority
+        ).chosen
         if chosen is not None:
             values[lang] = chosen
     return values or None
@@ -1157,5 +1264,6 @@ def _resolve_extra(ctx: _BuildContext, src: GdsnSource, gtin: str) -> str | None
             lambda market: sheet.pick_primary_file(gtin, market), ctx.market_priority
         )
         return chosen
-    chosen, _ = _pick_ranked(_scalar_picker(sheet, gtin, src), ctx.market_priority)
-    return chosen
+    return _pick_with_fallback(
+        partial(_scalar_picker, sheet, gtin, src), src, ctx.market_priority
+    ).chosen

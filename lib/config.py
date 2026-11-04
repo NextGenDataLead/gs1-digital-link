@@ -442,6 +442,9 @@ def _validate_unique_attributes(client_id: str, export: ExportConfig) -> None:
     The sheet is half the identity: GDSN attribute numbers are unique only within a sheet, so
     comparing numbers alone would refuse a legitimate config.
 
+    A ``fallback_attribute`` counts as read: a title falling back to 3297 beside an extra declared
+    on 3297 would carry that value twice for every product without 3309 — the same duplicate.
+
     Raises:
         ExportParseError: If two sources read the same ``(sheet, attribute)``.
     """
@@ -449,14 +452,15 @@ def _validate_unique_attributes(client_id: str, export: ExportConfig) -> None:
         return
     seen: dict[tuple[str, str], str] = {}
     for name, src in [*export.gdsn_map.items(), *export.gdsn_extras.items()]:
-        key = (src.sheet, src.attribute)
-        first = seen.get(key)
-        if first is not None:
-            raise ExportParseError(
-                f"client {client_id!r}: {first!r} and {name!r} both read "
-                f"{src.sheet} attr {src.attribute} — one attribute, one field"
-            )
-        seen[key] = name
+        for attribute in src.attributes or ("",):
+            key = (src.sheet, attribute)
+            first = seen.get(key)
+            if first is not None:
+                raise ExportParseError(
+                    f"client {client_id!r}: {first!r} and {name!r} both read "
+                    f"{src.sheet} attr {attribute} — one attribute, one field"
+                )
+            seen[key] = name
 
 
 def _validate_unique_field_names(client_id: str, export: ExportConfig) -> None:

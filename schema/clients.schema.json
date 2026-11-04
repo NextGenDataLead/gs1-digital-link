@@ -242,6 +242,11 @@
           "type": "string",
           "description": "GDSN attribute number (e.g. '3297') or a path segment name (e.g. 'GpcCategoryCode')."
         },
+        "fallback_attribute": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A second attribute on the same sheet, read only where `attribute` is empty in every target market — decided per language, so a value of `attribute` in any market wins. Each value taken from it is reported (value_from_fallback) so the client sees what is still to fill in MyGS1. E.g. attribute '3309' (Commerciële benaming) with fallback '3297' (Korte productnaam). Must differ from `attribute`; not for primary_file."
+        },
         "localised": {
           "type": "boolean",
           "description": "Whether the attribute is a per-language LanguageCode/Value group."

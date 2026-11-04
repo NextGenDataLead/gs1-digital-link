@@ -211,6 +211,7 @@ def test_a_subsection_carries_its_parents_number_with_no_gap() -> None:
         f"### {number}a. Values inconsistent across markets",
         f"### {number}b. Possible wrong-language values (worth a glance)",
         f"### {number}c. Marketing text much shorter in one language",
+        f"### {number}d. Taken from a fallback attribute — fill the preferred one",
     ]
 
 
@@ -1385,3 +1386,75 @@ def test_the_everything_live_report_leads_with_its_inventory_and_drops_run_notes
     assert md.index("## Live on the site") < md.index("## Summary")
     assert "Observations (this run)" not in md
     assert "All 12 published" not in md
+
+
+# --- §4d values taken from a fallback attribute --------------------------------
+
+
+def _fallback(gtin: str, field: str, value: str) -> SourceIssue:
+    return _issue(
+        gtin,
+        "value_from_fallback",
+        field=field,
+        value=value,
+        source="TradeItemDescription attr 3309, else 3297",
+    )
+
+
+def test_values_taken_from_a_fallback_are_listed_with_the_attribute_to_fill() -> None:
+    """One row per product, a column per language, the value the page shows now.
+
+    The client has chosen where the web name lives (3309); every row here is a product whose page
+    still shows the other attribute's value, so the row has to say both what is shown and where
+    the real one goes.
+    """
+    md = _render(
+        source_issues=[
+            _fallback("02987653000001", "product_name.nl", "Mini Juicer"),
+            _fallback("02987653000001", "product_name.fr", "Mini Juicer FR"),
+        ],
+        products=_products("02987653000001"),
+    )
+
+    section = _section(md, _MYGS1)
+    sub = section[section.index("d. Taken from a fallback attribute") :]
+    row = next(line for line in sub.splitlines() if "02987653000001" in line)
+    assert "TradeItemDescription attr 3309, else 3297" in row
+    assert "Mini Juicer" in row
+    assert "Mini Juicer FR" in row
+    assert "Value used now (nl)" in sub
+    assert "Value used now (fr)" in sub
+
+
+def test_a_fallback_value_does_not_block_and_is_counted_in_the_summary() -> None:
+    md = _render(
+        source_issues=[
+            _fallback("02987653000001", "product_name.nl", "Mini Juicer"),
+            _fallback("02987653000002", "product_name.nl", "Dizzy Dog"),
+        ],
+        products=_products("02987653000001", "02987653000002"),
+    )
+
+    row = next(
+        line for line in md.splitlines() if "fallback attribute" in line and "| Source" in line
+    )
+    cells = [c.strip() for c in row.split("|")[1:-1]]
+    assert cells[2] == "2"
+    assert "MyGS1" in cells[3]
+    assert cells[4].startswith("No")
+    # Not a blocker: §2 lists what holds a SKU, and a value the page has is not that.
+    assert "Mini Juicer" not in _section(md, _COPY)
+
+
+def test_the_matrix_header_names_both_attributes_and_the_legend_says_which_wins() -> None:
+    title = GdsnSource(
+        sheet="S", attribute="3309", fallback_attribute="3297", localised=True, required=True
+    )
+    gdsn_map = {
+        "product_name": title,
+        "brand": GdsnSource(sheet="S", attribute="3336", required=True),
+    }
+    md = _render(matrix=_matrix(gdsn_map=gdsn_map, products=[_p("02987653000001")]))
+
+    assert "product·3309/3297" in _headers(md)
+    assert "`product·3309/3297` reads attr 3309, and attr 3297 where 3309 is empty" in md

@@ -17,9 +17,11 @@ import pytest
 import yaml
 
 from lib import video_signoff_archive
+from lib.complete_scope import Complete
 from lib.config import get_client
+from lib.live_inventory import PublishedTotals
 from lib.quality_report_video import SignoffReview
-from lib.records import LocalisedText, ProductRecord
+from lib.records import LocalisedText, ProductRecord, SourceIssue
 from scripts import report_quality
 
 
@@ -555,3 +557,43 @@ def test_a_newer_sheet_with_no_choice_is_not_answered_with_the_older_one(
 
     assert isinstance(review, str)
     assert "has not had its columns chosen yet" in review and newer.name in review
+
+
+def test_the_complete_report_asks_the_client_to_fill_the_preferred_attribute(
+    tmp_path: Path,
+) -> None:
+    """A value taken from a fallback is a MyGS1 job, so it belongs in *What to do, by who*.
+
+    Every §4 subsection has a line there, counted from the same issues the section lists; §4d
+    without one would be the only client job a reader of the action table never hears about.
+    """
+    fallback = [
+        SourceIssue(
+            gtin=gtin,
+            field="product_name.nl",
+            source="TradeItemDescription attr 3309, else 3297",
+            issue="value_from_fallback",
+            value="Mini Juicer",
+            detail="d",
+        )
+        for gtin in ("02987653000001", "02987653000002")
+    ]
+    complete = Complete(
+        scope=frozenset(),
+        listed=[],
+        exported={},
+        rows=[],
+        site_note="",
+        languages=["nl", "fr"],
+        published=PublishedTotals(products=0),
+        default_language="nl",
+    )
+
+    lines = report_quality._complete_preface(
+        complete, {"source": fallback, "generated": [], "video_map": []}, {}, None, tmp_path
+    )
+
+    row = next(line for line in lines if "3309" in line or "preferred attribute" in line)
+    assert "Client — MyGS1" in row
+    assert "| 2 |" in row
+    assert "§4d" in row

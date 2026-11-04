@@ -368,7 +368,10 @@ Instead of `column_map`/`extras_columns`, a GDSN client declares:
   (e.g. `{"528": "nl", "056": "fr"}`).
 - `gdsn_map` — `{ProductRecord field: {sheet, attribute, localised?, with_unit?, primary_file?}}`.
   `attribute` is the GDSN attribute number (`"3297"`) or a path-segment name
-  (`GpcCategoryCode`).
+  (`GpcCategoryCode`). An optional `fallback_attribute` on the same sheet is read where
+  `attribute` is empty in every market, per language, and each value taken from it is reported
+  as a `value_from_fallback` source issue (data-quality report §4d). One rule,
+  `lib.gdsn._pick_with_fallback`, serves all four resolution paths.
 - `gdsn_extras` — the same shape, carried into `ProductRecord.extras`. Same shape means the same
   flags: an extra marked `required` holds the SKU exactly as a mapped field does (E23), and gets
   the same mandatory column in the coverage matrix. Consumers of that question read

@@ -53,7 +53,7 @@ from lib.errors import (
     StateError,
     VideoMapError,
 )
-from lib.gdsn import THIN_TEXT_ISSUE, check_language_balance, source_label
+from lib.gdsn import FALLBACK_ISSUE, THIN_TEXT_ISSUE, check_language_balance, source_label
 from lib.mandatory import MandatoryGap, missing_mandatory
 from lib.media_video import (
     VideoCandidate,
@@ -487,6 +487,12 @@ def _complete_preface(
             "Write the short marketing text in full",
             kinds[THIN_TEXT_ISSUE],
             "§4c",
+        ),
+        Action(
+            "Client — MyGS1",
+            "Fill the preferred attribute where a fallback was used",
+            kinds[FALLBACK_ISSUE],
+            "§4d",
         ),
         Action("Client — MyGS1", "Paste translated values back", generated[_TRANSLATED], "§5"),
         Action(
