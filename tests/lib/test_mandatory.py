@@ -174,3 +174,22 @@ def test_required_and_required_group_together_is_a_config_error() -> None:
     """They answer different questions; naming both means the author meant one of them."""
     with pytest.raises(ValueError, match="not both"):
         GdsnSource(sheet="S", attribute="1083", required=True, required_group="marketing_copy")
+
+
+def test_a_gap_in_a_field_with_a_fallback_names_both_attributes() -> None:
+    """The held SKU's line tells the client which attribute to fill, and that the other counts.
+
+    The parser only leaves the value blank when *both* attributes are empty, so naming just the
+    preferred one would send the client to MyGS1 believing 3297 does not matter — and naming just
+    the fallback would undo the point of moving the title to 3309.
+    """
+    gdsn_map = _map(
+        product_name=GdsnSource(
+            sheet="S", attribute="3309", fallback_attribute="3297", localised=True, required=True
+        ),
+    )
+    product = _product(product_name=LocalisedText(values={"nl": "Fly away"}))
+
+    gaps = missing_mandatory(product, gdsn_map, LANGS)
+
+    assert [g.label for g in gaps] == ["product_name.fr (attr 3309, else 3297)"]

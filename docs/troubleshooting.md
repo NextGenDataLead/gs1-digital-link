@@ -128,6 +128,19 @@ that client's real product list. Rehearse against the demo client instead:
 `python -m scripts.make_demo_export` writes a synthetic export, list and videos for `democlient`,
 in a scratch data folder (`GS1_DATA_DIR`), and refuses to overwrite anything without `--force`.
 
+### The parse refuses a value that "reads as spreadsheet formula text"
+
+An upload into MyGS1 stored a formula's *text* instead of its result: on 2026-11-04 every 3309 name
+came back as `INDEX([1]TradeItemDescription!$F:$F, MATCH(…, 0))Fun Grill`, and nothing else would
+have stopped it heading 49 live pages. The parse now refuses any value it would put on a page that
+starts with `=`, carries a sheet or workbook reference (`Sheet!$F:$F`, `[1]Sheet!`), is an Excel
+error value on its own (`#VALUE!`, `#REF!`, `#N/A`), or calls a lookup function in Excel's capitals
+(`INDEX(`, `MATCH(`, `VLOOKUP(` …). Like every parse error it writes nothing.
+
+**Fix it in MyGS1, not here:** re-upload the values only — in Excel, copy the columns, then
+*Paste Special → Values* before uploading (or upload a file that never held formulas) — then export
+again. A value in a language the site does not use is never read, so it is not refused.
+
 ### `400 21011 "No valid contract found."`
 
 The GS1 account has no **Digital Link contract**. This is a GS1-side provisioning matter, not a bug
@@ -419,7 +432,7 @@ partial output is never produced.
 
 Common causes: a GTIN row with no `product_name` in the default language (**E5**); a required column
 missing (**E17**); a `column_map` target that is not a `ProductRecord` field (**E6**, raised at config
-load).
+load); a value that is spreadsheet formula text (see *Traps* above).
 
 **Fix:** `python -m scripts.parse_export --dry-run` and iterate until clean. Required
 fields are `brand` and `product_name`.

@@ -79,6 +79,18 @@ export:
 - **`gdsn_extras`** — named pass-through attributes carried into `extras`, reachable from a template
   as `{{extras.material}}` or from `acf_map` as `extras.material`. Use this for anything that is not
   a first-class `ProductRecord` field.
+- **`fallback_attribute`** — on any `GdsnSource`: a second attribute on the same sheet, read only
+  where `attribute` is empty in **every** target market. Decided per language, so a value of
+  `attribute` in the lowest-ranked market still beats one of the fallback in the highest — the
+  question is which attribute the client meant, not which market answered first. Each value taken
+  from the fallback is reported (`value_from_fallback`) and listed in §4d of the data-quality
+  report, so the client can see what is still to fill in MyGS1. It counts as reading that attribute
+  for the one-attribute-one-field check, and must differ from `attribute`.
+
+  ```yaml
+  # Title from 3309 Commerciële benaming (the web name); 3297 Korte productnaam where 3309 is empty.
+  product_name: { sheet: TradeItemDescription, attribute: "3309", fallback_attribute: "3297", localised: true, required: true }
+  ```
 - **`extras_columns`** — the `flat` equivalent.
 - **`column_map`** — for `flat` exports: `{column_header: product_record_field}`. A target that is not
   a real `ProductRecord` field raises `ExportParseError` **at config load** (E6), not mid-parse.

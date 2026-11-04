@@ -95,6 +95,10 @@ clients:
         # back into MyGS1. Opt-in per field: every fill costs producer tokens and puts more
         # LLM-written text on the page. A field blank in EVERY language is never filled — there
         # is nothing to derive from, so it stays a source finding (E23). §4.2.
+        # fallback_attribute (optional, any source): a second attribute on the same sheet, read
+        # where `attribute` is empty in every market, per language — e.g. attribute "3309"
+        # (Commerciële benaming, the web name) with fallback_attribute "3297" for the products
+        # whose 3309 is not filled yet. Each value taken from it is listed in report §4d.
         product_name:      { sheet: TradeItemDescription,            attribute: "3301", localised: true, required: true, translate: true }
         # 1083 TradeItemMarketingMessage. NOT the tagline — exhaustive search disproved
         # that (34/36 live taglines match nothing here; 1083 is paragraph-length marketing

@@ -101,10 +101,10 @@ def missing_mandatory(
             continue
         for language in languages if source.localised else [""]:
             if not _present(product, field, source, language):
-                gaps.append(MandatoryGap(field, language, source.attribute))
+                gaps.append(MandatoryGap(field, language, source.attribute_label))
 
     for name, members in groups.items():
-        attributes = "/".join(source.attribute for _, source in members if source.attribute)
+        attributes = "/".join(source.attribute_label for _, source in members if source.attribute)
         localised = any(source.localised for _, source in members)
         for language in languages if localised else [""]:
             if any(_present(product, field, source, language) for field, source in members):

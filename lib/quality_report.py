@@ -19,7 +19,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable
 from typing import TYPE_CHECKING, NamedTuple
 
-from lib.gdsn import is_mandatory
+from lib.gdsn import FALLBACK_ISSUE, is_mandatory
 from lib.mandatory import MandatoryGap, value_for
 from lib.quality_report_balance import THIN_TEXT, TITLE, balance_lines
 from lib.quality_report_video import VideoReport, held_count, summary_rows, video_lines
@@ -40,6 +40,8 @@ _TRANSLATED = "value_translated"
 _BLANK = "value_blank"
 _INCONSISTENT = "value_inconsistent_across_markets"
 _WRONG_LANG = "value_wrong_language"
+#: A value read from a source's ``fallback_attribute`` because its preferred one was empty (§4d).
+_FALLBACK = FALLBACK_ISSUE
 
 #: Length of an ISO ``YYYY-MM-DD`` freshness date. Anything else (``—``) is "unknown", not old.
 _ISO_DATE_LEN = 10
@@ -142,9 +144,33 @@ def _either_or_sentence(gdsn_map: dict[str, GdsnSource], gdsn_extras: dict[str, 
     sources = {**gdsn_map, **gdsn_extras}
     clauses = []
     for column in _group_columns(gdsn_map, gdsn_extras).values():
-        attributes = [sources[f].attribute for f in column.fields if sources[f].attribute]
+        attributes = [sources[f].attribute_label for f in column.fields if sources[f].attribute]
         joined = " or ".join(f"attr {a}" for a in attributes)
         clauses.append(f"`{column.header}` is one requirement, satisfied by {joined}")
+    return (" " + "; ".join(clauses) + ".") if clauses else ""
+
+
+def _mapped_header(name: str, src: GdsnSource) -> str:
+    """``product·3297`` — a mapped column, headed by the attribute an operator searches MyGS1 for.
+
+    Both numbers when the source has a fallback (``product·3309/3297``): the column is filled from
+    either, and a header naming one would send the reader to the wrong cell for half the rows.
+    """
+    return f"{name.split('_', maxsplit=1)[0]}·{'/'.join(src.attributes)}"
+
+
+def _fallback_sentence(gdsn_map: dict[str, GdsnSource]) -> str:
+    """The legend clause saying, for each column with a fallback, which attribute is read first.
+
+    The header alone shows two numbers and not their order, and the order is the whole point: the
+    first is the one the client sets on purpose, the second only stands in for it.
+    """
+    clauses = [
+        f"`{_mapped_header(name, src)}` reads attr {src.attribute}, and attr "
+        f"{src.fallback_attribute} where {src.attribute} is empty (§4d lists those)"
+        for name, src in gdsn_map.items()
+        if src.fallback_attribute and src.in_matrix and not src.required_group
+    ]
     return (" " + "; ".join(clauses) + ".") if clauses else ""
 
 
@@ -187,7 +213,7 @@ def _columns(
                 )
         return out
 
-    mapped = build(gdsn_map, lambda name, src: f"{name.split('_')[0]}·{src.attribute}")
+    mapped = build(gdsn_map, _mapped_header)
     extras = build(gdsn_extras, lambda name, _src: name.replace("_", "·"))
     mandatory = [
         *(c for c in mapped if c.required),
@@ -439,6 +465,13 @@ def _summary_lines(  # noqa: PLR0913 — one parameter per source feeding a summ
         ],
         [
             "Source",
+            "Values taken from a fallback attribute",
+            str(len([i for i in source_issues if i.issue == _FALLBACK])),
+            "Client (MyGS1)",
+            "No — §4d to fill",
+        ],
+        [
+            "Source",
             "Possible wrong-language values",
             str(len([i for i in source_issues if i.issue == _WRONG_LANG])),
             "Client (MyGS1)",
@@ -553,7 +586,8 @@ def _matrix_lines(  # noqa: PLR0913 — a matrix needs its rows, its columns, an
         f"filled language-slots, so a localised field contributes {len(languages)}, and the "
         f"table is sorted with the closest to publishable at the top. The columns after `score` "
         f"are marked {_OPTIONAL_LABEL} and only thin the page."
-        + _either_or_sentence(gdsn_map, gdsn_extras),
+        + _either_or_sentence(gdsn_map, gdsn_extras)
+        + _fallback_sentence(gdsn_map),
         "",
         *_table(header, numbered),
         "",
@@ -596,7 +630,11 @@ def _requirement_rows(
     fields, sources = requirement.column.fields, requirement.sources
     header = [
         "GTIN",
-        *(f"{sources[field].attribute} {lang}" for field in fields for lang in languages),
+        *(
+            f"{'/'.join(sources[field].attributes)} {lang}"
+            for field in fields
+            for lang in languages
+        ),
         "Consequence",
     ]
     rows = []
@@ -647,7 +685,9 @@ def _blocking_lines(
     """
     groups = _group_columns(matrix.gdsn_map, matrix.gdsn_extras) if matrix else {}
     sources = {**matrix.gdsn_map, **matrix.gdsn_extras} if matrix else {}
-    attributes = [f"attr {sources[field].attribute}" for c in groups.values() for field in c.fields]
+    attributes = [
+        f"attr {sources[field].attribute_label}" for c in groups.values() for field in c.fields
+    ]
     tables: list[str] = []
     for group, column in groups.items():
         header, rows = _requirement_rows(
@@ -776,10 +816,11 @@ def _review_lines(
     ]
 
 
-def _source_lines(
+def _source_lines(  # noqa: PLR0913 — one list per subsection, plus what labels their rows
     inconsistent: list[SourceIssue],
     wrong_lang: list[SourceIssue],
     thin: list[SourceIssue],
+    fallback: list[SourceIssue],
     products: dict[str, ProductRecord],
     languages: list[str],
 ) -> list[str]:
@@ -793,7 +834,8 @@ def _source_lines(
 
     What is left is the findings a matrix *cannot* show, because each is about the value rather
     than its presence: markets disagreeing about a value, a value that reads as the wrong language,
-    and marketing text far shorter in one language than another (§4c).
+    and marketing text far shorter in one language than another (§4c) — and a value read from
+    the attribute the client did *not* choose for it (§4d), which the matrix shows as present.
     """
     inc_rows = [[_label(products, i.gtin), i.field, _market_cell(i)] for i in inconsistent]
     lang_rows = [[_label(products, i.gtin), i.field, _cell(i.value)] for i in wrong_lang]
@@ -817,6 +859,40 @@ def _source_lines(
         *_table(["GTIN", "Field", "Value (reads like the wrong language)"], lang_rows),
         "",
         *balance_lines(thin, products, languages, _label),
+        *_fallback_lines(fallback, products, languages),
+    ]
+
+
+def _fallback_lines(
+    fallback: list[SourceIssue], products: dict[str, ProductRecord], languages: list[str]
+) -> list[str]:
+    """§4d — values the page shows from a source's ``fallback_attribute``.
+
+    Noviplast's title is read from 3309 (*Commerciële benaming*) and, where that is empty, from
+    3297 (*Korte productnaam*). Those pages are not broken — they show a real name from the
+    client's own data — so nothing here holds a SKU, and §0 marks the column present. What the
+    row says is that the client has not yet set the value where they decided it should live.
+    """
+    header, rows = _by_language(
+        fallback,
+        products,
+        languages,
+        "Value used now",
+        extra_key=_ExtraKey(lambda issue: (_cell(issue.source),), ("Source attribute",)),
+    )
+    return [
+        "### 4d. Taken from a fallback attribute — fill the preferred one",
+        "",
+        "These fields are read from one GDSN attribute, and from a second where the first is "
+        "empty in every target market. For each product below the page shows the **second** "
+        "attribute's value (`3309, else 3297` reads: fill 3309; 3297 is what is shown now). "
+        "Nothing is held. Filling the first attribute in MyGS1 is what makes the page show the "
+        "value chosen for it — the next export carries it and the row leaves this table.",
+        "",
+        f"{_counted(len(fallback), 'value')} across {_counted(len(rows), 'row')}.",
+        "",
+        *_table(header, rows),
+        "",
     ]
 
 
@@ -962,6 +1038,7 @@ def render_quality_report(  # noqa: PLR0913 — a document renderer needs each s
     inconsistent = [i for i in source_issues if i.issue == _INCONSISTENT]
     wrong_lang = [i for i in source_issues if i.issue == _WRONG_LANG]
     thin = [i for i in source_issues if i.issue == THIN_TEXT]
+    fallback = [i for i in source_issues if i.issue == _FALLBACK]
 
     lines = [
         *_header_lines(client_id, snapshot, freshness, live=live),
@@ -1000,7 +1077,7 @@ def render_quality_report(  # noqa: PLR0913 — a document renderer needs each s
         ),
         *_blocking_lines(mandatory_gaps or {}, products, matrix, languages),
         *_review_lines(inferences, generated_count, products, client_id, languages),
-        *_source_lines(inconsistent, wrong_lang, thin, products, languages),
+        *_source_lines(inconsistent, wrong_lang, thin, fallback, products, languages),
         *_translated_lines(translated, products, languages),
         *_category_lines(category_issues),
     ]
