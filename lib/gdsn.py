@@ -642,6 +642,9 @@ def build_records(  # noqa: PLR0913 — each argument is a distinct input; bundl
         _resolve_extras(ctx, gdsn_extras, gtin, acc)
         warnings.extend(acc.warnings)
         issues.extend(acc.issues)
+        if formula_errors := _formula_text_errors(gtin, acc, {**gdsn_extras, **gdsn_map}):
+            errors.extend(formula_errors)
+            continue
 
         product_name = acc.localised.get("product_name")
         if not product_name or default_language not in product_name:
@@ -839,6 +842,59 @@ def suspect_language(value: str, lang: str) -> str | None:
     if lang == "nl" and any(h in folded for h in _FRENCH_HALLMARKS):
         return "French"
     return None
+
+
+#: What spreadsheet formula text looks like when an import stores it as a value. Each pattern is
+#: one shape seen or plausible from Excel, and each needs something ordinary product text does not
+#: carry: a leading ``=``, a cell reference after a sheet name (``Sheet!$F:$F``), an external
+#: workbook reference (``[1]Sheet!``), an Excel error value on its own, or a lookup function written
+#: the way Excel writes it — capitals, then a parenthesis. "Index card holder" and "Wow! Een …" do
+#: not match; ``INDEX([1]TradeItemDescription!$F:$F, …)Fun Grill``, which reached MyGS1 on
+#: 2026-11-04, matches three of them.
+_FORMULA_TEXT: Final = re.compile(
+    r"^\s*=\S"
+    r"|\[\d+\][^\s!]*!"
+    r"|[A-Za-z_][\w.]*!\$?[A-Z]{1,3}\$?(?:\d|:)"
+    r"|^\s*#(?:REF!|N/A|VALUE!|NAME\?|DIV/0!|NUM!|NULL!|SPILL!|CALC!)\s*$"
+    r"|\b(?:INDEX|MATCH|VLOOKUP|HLOOKUP|XLOOKUP|IFERROR|INDIRECT|OFFSET|CONCATENATE|TEXTJOIN)\s*\("
+)
+
+
+def looks_like_formula_text(value: str) -> bool:
+    """Whether ``value`` is spreadsheet formula text rather than something the client wrote.
+
+    Public so a future check over an upload sheet can use the same patterns.
+    """
+    return _FORMULA_TEXT.search(value) is not None
+
+
+def _formula_text_errors(gtin: str, acc: _Accumulator, sources: dict[str, GdsnSource]) -> list[str]:
+    """One parse error per resolved value that is formula text — on every resolution path.
+
+    Run over what the GTIN *resolved to*, after all four paths have written their values, so no
+    path can be left out the way ``multivalue`` once was: a value reaches a page only through the
+    accumulator, and the accumulator is what is read here. An error rather than a source issue,
+    because it never records the client's choice — it means an import went wrong, and a page
+    headed by it is worse than no run at all.
+    """
+    values = [
+        *(((f, None), v) for f, v in acc.scalars.items() if f != "gtin"),
+        *(((f, lang), v) for f, per in acc.localised.items() for lang, v in per.items()),
+        *(((f, None), v) for f, v in acc.extras.items()),
+        *(((f, lang), v) for f, per in acc.extras_localised.items() for lang, v in per.items()),
+    ]
+    errors = []
+    for (field, lang), value in values:
+        if not looks_like_formula_text(value):
+            continue
+        where = f"{field}.{lang}" if lang else field
+        source = f" ({source_label(sources[field])})" if field in sources else ""
+        errors.append(
+            f"GTIN {gtin}: {where}{source} reads as spreadsheet formula text, not a value: "
+            f"{value[:80]!r} — an upload into MyGS1 stored the formula. Re-upload the values only "
+            "(in Excel: copy, then Paste Special → Values) and export again"
+        )
+    return errors
 
 
 #: The issue kind for a value read from a source's ``fallback_attribute`` (report §4d).

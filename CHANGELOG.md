@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a product. The coverage matrix heads such a column with both numbers (`product·3309/3297`), and
   a held product's missing-data line names both attributes. The complete report's
   *What to do, by who* counts them as a job for the client in MyGS1.
+- **The parse refuses a value that is spreadsheet formula text.** An upload into MyGS1 had stored
+  `INDEX([1]TradeItemDescription!$F:$F, MATCH(…))` in front of every new 3309 name, and the export
+  carried it as plain text that would have headed 49 live pages. Any value the tool would publish
+  that starts with `=`, carries a sheet reference, is an Excel error value such as `#VALUE!`, or
+  calls a lookup function such as `INDEX(` now stops the parse, naming the product, the field and
+  the attribute, with the remedy: re-upload the values only in MyGS1. Checked against the full
+  2026-10-26 catalogue (no false alarm) and the faulty export (all 98 values refused).
 
 ## [0.5.3] - 2026-10-28
 
