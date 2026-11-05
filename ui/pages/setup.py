@@ -36,7 +36,7 @@ from typing import Any, Final
 
 from nicegui import ui
 
-from lib.config import DEFAULT_CLIENTS_PATH, ClientConfig
+from lib.config import DEFAULT_CLIENTS_PATH, LINK_LANGUAGES, ClientConfig
 from lib.errors import ConfigError
 from ui import DATA_ROOT, config_edit, context, env_edit, handover_panel, runner, theme
 from ui.form import FieldSet, Parsed, split_list
@@ -295,6 +295,17 @@ def _gs1(editor: _Editor, cfg: ClientConfig) -> None:
             gs1.account_number_production or "",
             "Confirm this against a live GET before trusting it — a write against an account "
             "that is not yours can still return 200.",
+        )
+        editor.choice(
+            ("gs1", "link_languages"),
+            "Resolver links",
+            gs1.link_languages,
+            LINK_LANGUAGES,
+            "`all`: one link per language, so a French phone opens the French page — but a "
+            "phone set to any other language (English, German…) gets GS1's choice screen. "
+            "`default_only`: the default language's link alone, so every scan opens that page, "
+            "French phones too. Takes effect on the next links run: every live product then "
+            "shows as 'GS1 record out of date' until it is rewritten.",
         )
         ui.label(
             "The four fields below hold the *names* of environment variables, never the "

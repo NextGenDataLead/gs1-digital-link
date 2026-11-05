@@ -88,12 +88,37 @@ unchanged and there is nothing to retry. In order of likelihood:
    `defaultLinkMulti`, every phone goes to the default (Dutch) page. A plain `links` re-run
    of the product makes GS1 add `defaultLinkMulti`. A row the plan calls UNCHANGED can still be
    confirmed for that — `run_execute` writes any confirmed row.
-3. **The language has no page.** A product linked to an existing page whose site advertises no
-   French version gets the Dutch link only, so a French phone opening Dutch is correct. The check
-   only scans languages the record has a link for, so this one never warns.
+3. **The language has no page, or no link by choice.** A product linked to an existing page whose
+   site advertises no French version gets the Dutch link only, and so does every product while
+   `gs1.link_languages` is `default_only` (next section). A French phone opening Dutch is then
+   correct. The check only scans languages the record has a link for, so neither ever warns.
 
 If a re-run still lands wrong, the resolver is choosing differently from what the record says —
 that is GS1's behaviour to raise with GS1 NL, not something to change in this tool.
+
+### A phone opens a GS1 page listing the links instead of the product page
+
+The page is titled **"GS1 Digital Link linkset"** and lists the product's pages to choose from.
+It appears when the phone's language list names **none** of the record's languages: a phone set to
+English only, in Belgium or the Philippines, scanning a product with an nl and an fr link. A phone
+with Dutch or French anywhere in its list, even second, goes straight to that page.
+
+The cause is GS1's, not the record's. With a link per language GS1 makes each one a per-language
+default (`defaultLinkMulti`), however the tool flags them — it sends the French link as *not* the
+default — and id.gs1.org then treats a language it cannot match as a choice it cannot make. The
+GS1-Conformant Resolver Standard (1.2.1, §2.6.1 and its Example 7) says it should redirect to the
+default link instead; that has been raised with GS1 NL (2026-11-05). Requests that do not come from
+a browser are redirected to the Dutch page, so a check with `curl` and no `Accept: text/html`
+misses it.
+
+To send **every** scan to the default-language page until GS1 changes it: on Setup, set
+**Resolver links** to `default_only` (`gs1.link_languages` in `clients.yml`), then run `links` for
+the products already live. The record then holds the Dutch link alone and every phone, French ones
+included, opens the Dutch page; the French page is still one click away in the site's language
+switcher. Switching it makes every live product's record read as *GS1 record out of date* in the
+plan until a `links` run rewrites it — that is the plan telling you which records still carry the
+French link. The QR codes do not change: they hold only the barcode. Setting it back to `all` and
+running `links` again restores the French links.
 
 ### A page went live without its video, and the run warned about the file
 

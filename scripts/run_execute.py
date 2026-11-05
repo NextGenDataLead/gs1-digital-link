@@ -105,7 +105,7 @@ from lib.errors import (
 from lib.gs1_dl_client import GS1Config as ResolvedGS1Config
 from lib.gs1_dl_client import GS1DigitalLinkClient
 from lib.input_layout import archive_path
-from lib.link_set import build_links, link_set_hash
+from lib.link_set import build_links, link_set_hash, resolver_pages
 from lib.media import convert_image_for_web
 from lib.media_video import (
     CLOSED_GATE,
@@ -977,10 +977,11 @@ def _execute_gtin(  # noqa: PLR0913 — one collaborator per step; bundling them
         page_entries = _finish_pages(gtin, rows, fresh, wp, state, ts) if mode.writes_pages else {}
         link_hash = None
         if mode.writes_links:
-            pages = (
+            pages = resolver_pages(
+                cfg,
                 _pages_for_links(cfg, gtin, rows, fresh, wp, state)
                 if mode.writes_pages or not rows[0].listed_url
-                else _listed_pages(cfg, gtin, rows, wp, state)
+                else _listed_pages(cfg, gtin, rows, wp, state),
             )
             _verify_targets(wp, pages, {page.url for page in fresh.values()})
             link_hash = _finish_links(cfg, gtin, rows, pages, gs1, outcomes)
@@ -1075,7 +1076,13 @@ def _preview_text(cfg: ClientConfig, row: PlanRow, mode: _Mode) -> str:
             f"upsert WP {cfg.wordpress.post_type!r} page {row.slug!r}{media}{category}, then link "
             f"this GTIN's languages as translations"
         )
-    if mode.writes_links:
+    if mode.writes_links and _unlinked(cfg, row):
+        default = cfg.wordpress.default_language
+        parts.append(
+            f"write no {row.language} link in GS1 (gs1.link_languages is default_only: a "
+            f"{row.language} scan lands on the {default} page, like every other scan)"
+        )
+    elif mode.writes_links:
         target = row.target_url
         default = cfg.wordpress.default_language
         if row.listed_url and not mode.writes_pages and row.language == default:
@@ -1094,6 +1101,13 @@ def _preview_text(cfg: ClientConfig, row: PlanRow, mode: _Mode) -> str:
     if conflict:
         return f"would refuse this GTIN: {conflict}"
     return "would " + ", then ".join(parts)
+
+
+def _unlinked(cfg: ClientConfig, row: PlanRow) -> bool:
+    """Whether this row's language gets no link in the GS1 record (``gs1.link_languages``)."""
+    return (
+        cfg.gs1.link_languages == "default_only" and row.language != cfg.wordpress.default_language
+    )
 
 
 def _confirmed_rows(confirmed: ConfirmedPlan) -> list[PlanRow]:

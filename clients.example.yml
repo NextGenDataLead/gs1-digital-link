@@ -17,6 +17,11 @@ defaults:
       resolver_domain_name: null    # only used when use_gs1_resolver: false
     default_media_type: "text/html" # for HTML product-page targets
     batch_size: 50                  # for bulk endpoint
+    # Which languages get a link in each GS1 record. all: one per site language, so a French
+    # phone opens the French page — but GS1 then shows a phone in any other language (English,
+    # German…) a choice screen instead of a page. default_only: the default language's link
+    # alone, so every scan opens that page, French phones too. Set it on the Setup screen.
+    link_languages: all             # all | default_only
   wordpress:
     post_type: page
     post_status: publish

@@ -62,12 +62,20 @@ gs1:
   environment: test                 # test | production
   digital_link_url_pattern: "https://id.gs1.org/01/{gtin14}"
   batch_size: 50
+  link_languages: all               # all | default_only — see below
   resolver_settings:
     use_gs1_resolver: true
     resolver_domain_name: null
 ```
 
 These are env var **names**. The values belong in `.env` and nowhere else. `lib/config.py` is the authoritative field list including defaults.
+
+`link_languages` decides which languages get a link in each record. With `all` there is one per
+site language, and GS1 makes each a per-language default (`defaultLinkMulti`) whatever
+`defaultLinkType` says — so a French phone opens the French page, and a phone whose languages
+match none of them gets id.gs1.org's "linkset" choice screen. With `default_only` the record holds
+the default language's link alone and every scan opens that page. See
+[`troubleshooting.md`](troubleshooting.md#a-phone-opens-a-gs1-page-listing-the-links-instead-of-the-product-page).
 
 Link entries are declared separately, one per link type:
 

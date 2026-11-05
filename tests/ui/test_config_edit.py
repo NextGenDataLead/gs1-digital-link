@@ -264,3 +264,17 @@ def test_what_the_form_wrote_is_what_the_pipeline_then_loads(tmp_path: Path) -> 
     assert config.wordpress.languages == ["nl", "fr", "de"]
     assert config.gs1.environment == "test"
     assert config.export.path == "./input/acme/2026-Q3.xlsx"
+
+
+def test_the_resolver_links_choice_lands_in_the_client_gs1_block_and_loads(tmp_path: Path) -> None:
+    """The Setup dropdown for ``gs1.link_languages`` (2026-11-05), on a file that lacks the key.
+
+    Set from Setup rather than typed into the file: the 0.5.4 rollout's one hand edit to
+    ``clients.yml`` lost a comma and the shell would not start.
+    """
+    path = tmp_path / "clients.yml"
+    path.write_text(CONFIG, encoding="utf-8")
+
+    write_validated(path, apply_edits(CONFIG, {_path("gs1", "link_languages"): "default_only"}))
+
+    assert get_client("acme", path).gs1.link_languages == "default_only"
