@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import TYPE_CHECKING, Final, Protocol, TypeVar
 
 from lib.config import ClientConfig, GS1LinkConfig
 from lib.gs1_dl_client import LinkInput
@@ -35,6 +35,9 @@ class LinkTarget(Protocol):
 
     @property
     def title(self) -> str: ...
+
+
+_T = TypeVar("_T", bound=LinkTarget)
 
 
 def link_title(
@@ -57,18 +60,43 @@ def link_title(
     )
 
 
+def resolver_pages(cfg: ClientConfig, pages: Mapping[str, _T]) -> dict[str, _T]:
+    """The pages the GS1 record links to: every language's, or the default's alone.
+
+    ``gs1.link_languages: default_only`` keeps only the default language. Every scan then lands
+    on that page, whatever the phone's language — French phones too, which is the price. With
+    a link per language GS1 makes each a per-language default, and id.gs1.org shows a phone whose
+    languages match none of them a choice screen instead of a page.
+
+    Raises:
+        ValueError: ``default_only`` with no default-language page. GS1 replaces the links
+            array wholesale, so writing an empty one would strip the record bare.
+    """
+    if cfg.gs1.link_languages == "all":
+        return dict(pages)
+    default = cfg.wordpress.default_language
+    if default not in pages:
+        raise ValueError(
+            f"gs1.link_languages is default_only but there is no {default} page to link "
+            f"(only {', '.join(sorted(pages)) or 'none'}) — the record would be left with no link"
+        )
+    return {default: pages[default]}
+
+
 def build_links(
     cfg: ClientConfig, product: ProductRecord, pages: Mapping[str, LinkTarget]
 ) -> list[LinkInput]:
-    """Build the resolver link set for one GTIN, spanning every known language (§4.3).
+    """Build the resolver link set for one GTIN, spanning every linked language (§4.3).
 
     This is the whole record's link set, not one language's: GS1's CreateOrUpdate replaces the
-    ``links`` array wholesale, so whatever is omitted here is deleted from the record.
+    ``links`` array wholesale, so whatever is omitted here is deleted from the record. Which
+    languages are linked is :func:`resolver_pages`'s answer.
 
     Languages are emitted in sorted order so :func:`link_set_hash` is stable across runs
     regardless of plan order.
     """
     configs = cfg.gs1_links or [GS1LinkConfig(link_type=DEFAULT_LINK_TYPE, default=True)]
+    pages = resolver_pages(cfg, pages)
     return [
         LinkInput(
             link_type=link.link_type,

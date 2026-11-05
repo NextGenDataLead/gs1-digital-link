@@ -60,6 +60,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "Entries per request to the bulk upsert endpoint."
+        },
+        "link_languages": {
+          "description": "Which languages get a link in a product's GS1 record. 'all': one per site language, so a French phone opens the French page, but a phone set to any other language gets GS1's choice screen. 'default_only': the default language's link alone, so every scan opens that page.",
+          "enum": ["all", "default_only"]
         }
       }
     },
@@ -112,7 +116,8 @@
         "digital_link_url_pattern": { "type": "string" },
         "resolver_settings": { "$ref": "#/$defs/resolverSettings" },
         "default_media_type": { "type": "string" },
-        "batch_size": { "type": "integer", "minimum": 1 }
+        "batch_size": { "type": "integer", "minimum": 1 },
+        "link_languages": { "enum": ["all", "default_only"] }
       }
     },
     "wordpressDefaults": {

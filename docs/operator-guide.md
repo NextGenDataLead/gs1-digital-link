@@ -469,7 +469,7 @@ publishing, and two out-of-step copies is how a product gets published twice.
 Rarely. **Setup** is the site's settings — the website address, the login, which GS1 environment,
 where the files live. It is configured once, by the maintainer.
 
-Three reasons an operator opens it:
+Four reasons an operator opens it:
 
 - **The work is moving to or from another machine.** *Hand over to another machine* has two
   buttons. **Make a handover pack** puts the settings, the batch files and the record of what is
@@ -481,6 +481,10 @@ Three reasons an operator opens it:
   pack does not know about. Video files are never in a pack; copy those folders across yourself.
 - **A password changed.** The *Credentials* section takes the new one. It never shows you an
   existing value, only whether one is set.
+- **Phones in other languages get a GS1 page with a list of links instead of the product page.**
+  In the *GS1* section, **Resolver links** set to `default_only` sends every scan to the Dutch
+  page, French phones too. After saving it, run a **links** batch for the products already live:
+  until then they show as *GS1 record out of date*. The QR codes stay the same.
 - **Something is failing and you want to test one thing.** The *Test* section runs the same checks
   as Preflight, but only the two or three that concern the setting you just changed.
 

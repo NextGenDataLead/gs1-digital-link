@@ -43,6 +43,14 @@ _PRODUCT_FIELDS: Final[frozenset[str]] = frozenset(ProductRecord.model_fields) -
 
 Environment = Literal["test", "production"]
 
+#: Which languages get a link in a product's GS1 record (``gs1.link_languages``). ``all``: one
+#: per site language, so a French phone opens the French page. ``default_only``: the default
+#: language's link alone, so every phone opens that page. With two or more language links GS1
+#: makes each a per-language default, and id.gs1.org then shows a phone whose languages match
+#: none of them a "linkset" choice screen instead of a page (Noviplast, 2026-11-05).
+LinkLanguages = Literal["all", "default_only"]
+LINK_LANGUAGES: Final[tuple[LinkLanguages, ...]] = ("all", "default_only")
+
 
 # --- Config models (§2.4) ----------------------------------------------------
 
@@ -69,6 +77,7 @@ class GS1Config(BaseModel):
     resolver_settings: ResolverSettings = Field(default_factory=ResolverSettings)
     default_media_type: str = "text/html"
     batch_size: int = 50
+    link_languages: LinkLanguages = "all"
 
     def resolve(self, environment: Environment | None = None) -> ResolvedGS1Config:
         """Produce the resolved, single-environment config for the GS1 client.

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-11-05
+
+### Added
+- **Every scan can go to the Dutch page: `gs1.link_languages: default_only`.** With a Dutch and a
+  French link in a record, GS1 makes both a per-language default, and id.gs1.org then shows a
+  phone set to any third language — English in Belgium or the Philippines — a "GS1 Digital Link
+  linkset" page to choose from instead of a product page. `default_only` writes the default
+  language's link alone, so every phone opens that page, French ones included. It is the
+  **Resolver links** dropdown in the GS1 section of Setup; `all`, the default, keeps one link per
+  language as before. Switching it marks every live product's record *GS1 record out of date*
+  until a `links` run rewrites it, and that run checks only the pages it links. The QR codes do
+  not change. Removing the French link by hand from one record (08713195001593) is what showed it
+  works.
+
 ## [0.5.4] - 2026-11-04
 
 ### Added

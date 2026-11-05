@@ -42,6 +42,7 @@ from lib.eligibility import Eligibility
 from lib.errors import MediaIntegrityError, WordPressAPIError
 from lib.input_layout import archive_path
 from lib.issue_report import selection_issues
+from lib.link_set import link_set_hash
 from lib.provenance import history_path, read_run, record_upload
 from lib.records import LocalisedText, Plan, PlanClassification, PlanRow, ProductRecord, State
 from lib.run_files import (
@@ -2271,6 +2272,78 @@ def test_a_dry_run_names_the_listed_page_as_the_target(
     # run used to say "one nl link for every language", which is what the real run does not do.
     assert f"the fr version the listed page {_OLD_NL} names" in caplog.text
     assert "for every language" not in caplog.text
+
+
+# --- gs1.link_languages: default_only -------------------------------------------
+# With an nl and an fr link GS1 makes both per-language defaults, and id.gs1.org shows a phone
+# set to any third language a choice screen (Noviplast, 2026-11-05). default_only writes the nl
+# link alone, so every scan lands on the Dutch page.
+
+
+def _default_only() -> ClientConfig:
+    cfg = _make_config()
+    return cfg.model_copy(
+        update={"gs1": cfg.gs1.model_copy(update={"link_languages": "default_only"})}
+    )
+
+
+def test_default_only_writes_one_nl_link_while_both_pages_publish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    rec = _install(monkeypatch, _default_only())
+    plan = _write_json(tmp_path / "plan.json", _plan(_row(GTIN_A, "nl"), _row(GTIN_A, "fr")))
+
+    code = run_execute.main(["acme", "--plan", str(plan)])
+
+    assert code == 0
+    assert {call["language"] for call in rec.wp} >= {"nl", "fr"}  # both pages publish
+    [write] = rec.gs1
+    assert [(link["language"], link["default_link_type"]) for link in write["links"]] == [
+        ("nl", True)
+    ]
+    # Both rows are ledgered with the hash of what was written, so the next plan is quiet.
+    entries = load_state("acme").entries[GTIN_A]
+    assert {entry.gs1_link_set_hash for entry in entries.values()} == {
+        link_set_hash(write["links"])
+    }
+
+
+def test_default_only_rewrites_a_live_two_language_record_without_checking_the_fr_page(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The live records' case: written with nl+fr, rewritten by a links run with nl alone.
+
+    The fr page is not linked, so whether it serves is not this write's business — a run that
+    refused over it would keep the choice screen up for a page nobody is pointed at.
+    """
+    monkeypatch.chdir(tmp_path)
+    both = _plan(_row(GTIN_A, "nl"), _row(GTIN_A, "fr"))
+    _install(monkeypatch, _make_config())
+    assert run_execute.main(["acme", "--plan", str(_write_json(tmp_path / "a.json", both))]) == 0
+
+    rec = _install(monkeypatch, _default_only(), unverifiable=(_page_url("fr", f"p-{GTIN_A}"),))
+    plan = _write_json(tmp_path / "b.json", both)
+    code = run_execute.main(["acme", "--plan", str(plan), "--only", "links"])
+
+    assert code == 0
+    assert [link["language"] for link in rec.gs1[-1]["links"]] == ["nl"]
+    assert rec.verified == [_page_url("nl", f"p-{GTIN_A}")]
+
+
+def test_a_default_only_dry_run_says_the_fr_row_gets_no_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _install(monkeypatch, _default_only())
+    plan = _write_json(tmp_path / "plan.json", _plan(_row(GTIN_A, "nl"), _row(GTIN_A, "fr")))
+
+    with caplog.at_level("INFO"):
+        code = run_execute.main(["acme", "--plan", str(plan), "--dry-run", "--only", "links"])
+
+    assert code == 0
+    assert "/fr: would write no fr link in GS1" in caplog.text
+    assert "a fr scan lands on the nl page" in caplog.text
 
 
 # --- What a run keeps beside its log -----------------------------------------
