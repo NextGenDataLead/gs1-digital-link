@@ -258,6 +258,12 @@ clients:
       prompt_version: v1
       api_key_env: ANTHROPIC_API_KEY
       max_tokens: 1024
+      # Write copy in the default language only; every other language's copy is its translation,
+      # so the pages say the same thing. Another language's GS1 text then rewrites nothing (the
+      # data-quality report's §4e still compares it). Needs `--backend api`. Turning it on makes
+      # each live page in another language due one translation of the Dutch page as it stands;
+      # after that, a change to the default language's text rewrites every language.
+      translate_copy: false
 
     # Phase 7.5: GPC brick -> site category. The GDSN feed carries a GPC brick
     # (gpc_brick_code, attr GpcCategoryCode) but not the client's marketing category, so

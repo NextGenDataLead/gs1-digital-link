@@ -73,6 +73,8 @@ ORIGIN_GENERATED: Final = "generated"  # produced from 1083 (no usable 1067); re
 #: What a pending request asks the producer to do.
 MODE_TIGHTEN: Final = "tighten"  # 1067 present but too long — shorten and rank it
 MODE_GENERATE: Final = "generate"  # no usable 1067 — write from 1083
+MODE_TRANSLATE: Final = "translate"  # translate the default language's copy (translate_copy)
+ORIGIN_TRANSLATED: Final = "translated"  # the default language's copy, translated
 
 #: Placeholder material values the feed carries in lieu of a real one — treated as absent.
 _PLACEHOLDER_PREFIX: Final = "zzz"
@@ -156,6 +158,9 @@ class GenerationContext(BaseModel):
     prompt_version: str
     #: Sources marked ``translate: true``, in config order. Empty means nothing is ever filled.
     translatable: list[TranslatableField] = Field(default_factory=list)
+    #: ``generator.translate_copy``: every other language's copy is a translation of the default
+    #: language's, and is written from the default language's GS1 text alone.
+    translate_copy: bool = False
 
 
 class GenerationInputs(BaseModel):
@@ -222,6 +227,9 @@ class GenerationRequest(BaseModel):
     translations: list[TranslationGap] = Field(default_factory=list)
     mode: str = MODE_GENERATE  # MODE_TIGHTEN to shorten a long 1067, else MODE_GENERATE
     candidates: list[str] = Field(default_factory=list)  # the 1067 USPs to tighten (MODE_TIGHTEN)
+    #: MODE_TRANSLATE: the default language's copy to translate, line for line, and its language.
+    source_usps: list[str] = Field(default_factory=list)
+    source_language: str | None = None
 
 
 class LLMClient(Protocol):
@@ -459,6 +467,8 @@ def generation_context(  # noqa: PLR0913 — each argument is a distinct client 
     prompt_version: str,
     gdsn_map: dict[str, GdsnSource],
     gdsn_extras: dict[str, GdsnSource],
+    *,
+    translate_copy: bool = False,
 ) -> GenerationContext:
     """Bundle the client facts the generation steps need, reading ``translate`` from config.
 
@@ -468,6 +478,7 @@ def generation_context(  # noqa: PLR0913 — each argument is a distinct client 
         prompt_version: The active prompt version (part of every fingerprint).
         gdsn_map: The client's ``export.gdsn_map``.
         gdsn_extras: The client's ``export.gdsn_extras``.
+        translate_copy: ``generator.translate_copy``.
 
     Returns:
         The context. ``translatable`` holds every source marked ``translate: true``, mapped fields
@@ -490,7 +501,13 @@ def generation_context(  # noqa: PLR0913 — each argument is a distinct client 
         default_language=default_language,
         prompt_version=prompt_version,
         translatable=translatable,
+        translate_copy=translate_copy,
     )
+
+
+def is_translated(context: GenerationContext, language: str) -> bool:
+    """Whether ``language``'s copy is a translation of the default language's (translate_copy)."""
+    return context.translate_copy and language != context.default_language
 
 
 def _is_foreign(language: str, value: str) -> bool:
@@ -622,7 +639,13 @@ def _functional_name(product: ProductRecord, language: str, default_language: st
 def _gather_inputs(
     product: ProductRecord, language: str, context: GenerationContext, gaps: list[TranslationGap]
 ) -> GenerationInputs:
-    """Assemble the generation inputs for one ``(gtin, language)`` from the record."""
+    """Assemble the generation inputs for one ``(gtin, language)`` from the record.
+
+    A translated language (``translate_copy``) is given the **default language's** texts: its copy
+    is that copy translated, so its own GS1 text has no say in it, and editing it must not make
+    its copy read as stale. Only its translation gaps (its title, its material) stay its own.
+    """
+    copy_language = context.default_language if is_translated(context, language) else language
     return GenerationInputs(
         # Named for the producer's vocabulary — the prompt and the content-generator skill both
         # call it the functional name — but read from ``product_name``, which *is* attr 3301. It
@@ -632,18 +655,18 @@ def _gather_inputs(
         # keeping, and is now a stated rule rather than a side effect of how extras were stored: a
         # unit with no name in its own language is seeded with the Dutch one, because that is what
         # the copy describes.
-        functional_name=_functional_name(product, language, context.default_language),
+        functional_name=_functional_name(product, copy_language, context.default_language),
         marketing_message=(
-            product.description_short.get(language) if product.description_short else None
+            product.description_short.get(copy_language) if product.description_short else None
         ),
         feature_benefit=(
-            product.description_long.get(language) if product.description_long else None
+            product.description_long.get(copy_language) if product.description_long else None
         ),
         net_content=product.net_content,
         dim_height=product.extras.get("dim_height"),
         dim_width=product.extras.get("dim_width"),
         dim_depth=product.extras.get("dim_depth"),
-        material=_material(product, language, context.default_language),
+        material=_material(product, copy_language, context.default_language),
         translation_sources={gap.field: gap.source_value for gap in gaps},
     )
 
@@ -732,6 +755,8 @@ def pending_requests(
         for language in context.languages:
             if units is not None and (product.gtin, language) not in units:
                 continue
+            if is_translated(context, language):
+                continue  # written from the default language's copy: see translation_requests
             inputs, gaps, fingerprint = _prepare_unit(product, language, context)
             if _feed_verbatim(inputs) is not None:
                 continue  # the feed already wrote it; merge_generated materialises it
@@ -931,6 +956,18 @@ def _content_issue(gtin: str, language: str, unit: GeneratedUnit) -> SourceIssue
     """
     if unit.origin == ORIGIN_FEED:
         return None
+    if unit.origin == ORIGIN_TRANSLATED:
+        return SourceIssue(
+            gtin=gtin,
+            field=f"generated_description.{language}",
+            source="translated from the default language's copy",
+            issue="content_generated",
+            value=unit.source_input,
+            detail=(
+                f"Tagline and Eigenschappen for {language} were translated from the default "
+                f"language's copy ({unit.provenance}); review the translation before publishing."
+            ),
+        )
     if unit.origin == ORIGIN_TIGHTENED:
         return SourceIssue(
             gtin=gtin,
@@ -1042,8 +1079,14 @@ def _index(results: ResultsFile) -> _Copy:
     )
 
 
-def _resolve_unit(
-    gtin: str, language: str, inputs: GenerationInputs, fingerprint: str, copy: _Copy
+def _resolve_unit(  # noqa: PLR0913 — the unit, what it was asked from, and how it is written
+    gtin: str,
+    language: str,
+    inputs: GenerationInputs,
+    fingerprint: str,
+    copy: _Copy,
+    *,
+    translated: bool = False,
 ) -> GeneratedUnit | None:
     """The copy for one unit: the feed's own if it is usable, else this run's result, else none.
 
@@ -1056,7 +1099,7 @@ def _resolve_unit(
     without the check a ``parse_export`` re-run in between would publish copy about data the feed
     no longer holds — silently, which is how wrong pages used to happen.
     """
-    verbatim = _feed_verbatim(inputs)
+    verbatim = None if translated else _feed_verbatim(inputs)
     if verbatim is not None:
         return GeneratedUnit(
             usps=verbatim,
@@ -1081,7 +1124,13 @@ def _resolve_unit(
         usps=list(item.usps),
         translations=dict(item.translations),
         # Derived, not declared: the feed already answers how this copy came to be.
-        origin=ORIGIN_TIGHTENED if _feature_candidates(inputs) else ORIGIN_GENERATED,
+        origin=(
+            ORIGIN_TRANSLATED
+            if translated
+            else ORIGIN_TIGHTENED
+            if _feature_candidates(inputs)
+            else ORIGIN_GENERATED
+        ),
         provenance=copy.provenance,
         source_input=_source_input(inputs),
         inferences=list(item.inferences),
@@ -1116,7 +1165,17 @@ def missing_copy(
             if units is not None and (product.gtin, language) not in units:
                 continue
             inputs, _, fingerprint = _prepare_unit(product, language, context)
-            if _resolve_unit(product.gtin, language, inputs, fingerprint, copy) is None:
+            if (
+                _resolve_unit(
+                    product.gtin,
+                    language,
+                    inputs,
+                    fingerprint,
+                    copy,
+                    translated=is_translated(context, language),
+                )
+                is None
+            ):
                 missing.append((product.gtin, language))
     return missing
 
@@ -1136,7 +1195,14 @@ def _read_copy(
     issues: list[SourceIssue] = []
     for language in context.languages:
         inputs, gaps, fingerprint = _prepare_unit(product, language, context)
-        unit = _resolve_unit(product.gtin, language, inputs, fingerprint, copy)
+        unit = _resolve_unit(
+            product.gtin,
+            language,
+            inputs,
+            fingerprint,
+            copy,
+            translated=is_translated(context, language),
+        )
         reads[language] = _UnitRead(unit, gaps, inputs)
 
         for gap in gaps:

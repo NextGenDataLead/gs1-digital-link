@@ -39,7 +39,7 @@ from pydantic import ValidationError
 from lib import client_files
 from lib.config import GeneratorConfig
 from lib.errors import GeneratorError, LLMAPIError, MissingCredentialError
-from lib.generator import MODE_TIGHTEN, GenerationRequest, GenerationResult
+from lib.generator import MODE_TIGHTEN, MODE_TRANSLATE, GenerationRequest, GenerationResult
 from lib.language_check import (
     VERDICT_DIFFERS,
     VERDICT_WRONG_LANGUAGE,
@@ -227,7 +227,15 @@ def _render_request(request: GenerationRequest) -> str:
     """Render one request into the deterministic user message (fixed field order)."""
     inputs = request.inputs
     lines = [f"GTIN {request.gtin}, language: {request.language}.", f"Mode: {request.mode}."]
-    if request.mode == MODE_TIGHTEN:
+    if request.mode == MODE_TRANSLATE:
+        lines.append(
+            f"Translate this {request.source_language} copy into {request.language}, line for "
+            f"line: return exactly {len(request.source_usps)} usps, in the same order, the first "
+            "being the tagline. Keep each line's meaning exactly — add nothing, drop nothing. "
+            "The inputs below are context for the translation, not material for new claims:"
+        )
+        lines.extend(f"  - {line}" for line in request.source_usps)
+    elif request.mode == MODE_TIGHTEN:
         lines.append("Shorten and rank these existing feature/benefit lines (keep their meaning):")
         lines.extend(f"  - {candidate}" for candidate in request.candidates)
     else:

@@ -130,6 +130,7 @@ def held_products(cfg: ClientConfig, products: list[ProductRecord]) -> dict[str,
             cfg.generator.prompt_version,
             cfg.export.gdsn_map,
             cfg.export.gdsn_extras,
+            translate_copy=cfg.generator.translate_copy,
         )
         if cfg.generator is not None
         else None

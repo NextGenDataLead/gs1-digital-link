@@ -861,6 +861,13 @@ def _finish_pages(  # noqa: PLR0913 — one collaborator per step; bundling them
             video_file=page.video_file,  # lets a page published without one get it later
             video_failed=page.video_failed,
             video_failed_retry=page.video_failed_retry,
+            # What this page's copy was written from (translate_copy). A row that keeps the page's
+            # text keeps the record of what that text was written from; a row bringing new copy
+            # brings its own, which is none when the copy was written without translate_copy —
+            # so turning the setting back on finds that page due again.
+            copy_basis=(prior.copy_basis if prior else None)
+            if row.keeps_live_copy
+            else row.copy_basis,
         )
     return entries
 
@@ -937,6 +944,26 @@ def _commit_state(  # noqa: PLR0913 — the merge needs both legs' output plus w
         state.entries.setdefault(gtin, {})[row.language] = entry
 
 
+def _seed_default_basis(
+    state: State, gtin: str, rows: list[PlanRow], default_language: str
+) -> None:
+    """Record on a default-language page with none what its translations were written from.
+
+    The ``translate_copy`` switch leaves the default-language page as it is and translates it as
+    it is live, so that page's text is the source its translations record. Without this, it has
+    no basis to compare, and a later change to its GS1 text would rewrite nothing.
+    """
+    entries = state.entries.get(gtin, {})
+    default = entries.get(default_language)
+    basis = next(
+        (row.copy_basis for row in rows if row.language != default_language and row.copy_basis),
+        None,
+    )
+    if default is None or default.copy_basis is not None or basis is None:
+        return
+    entries[default_language] = default.model_copy(update={"copy_basis": basis})
+
+
 def _execute_gtin(  # noqa: PLR0913 — one collaborator per step; bundling them only hides them
     cfg: ClientConfig,
     gtin: str,
@@ -986,6 +1013,8 @@ def _execute_gtin(  # noqa: PLR0913 — one collaborator per step; bundling them
             _verify_targets(wp, pages, {page.url for page in fresh.values()})
             link_hash = _finish_links(cfg, gtin, rows, pages, gs1, outcomes)
         _commit_state(state, gtin, rows, page_entries, link_hash, ts)
+        if mode.writes_pages:
+            _seed_default_basis(state, gtin, rows, cfg.wordpress.default_language)
     except Exception as exc:  # noqa: BLE001 — one bad GTIN must not abort the run
         for row in rows:
             _record_failure(outcomes[row.language], exc)

@@ -434,6 +434,10 @@
           "type": "integer",
           "minimum": 1,
           "description": "Max output tokens per generation call."
+        },
+        "translate_copy": {
+          "type": "boolean",
+          "description": "Write copy in the default language only; every other language's copy is its translation, and another language's GS1 text no longer rewrites anything (it is only compared, in the data-quality report's §4e). Needs the API backend."
         }
       }
     },

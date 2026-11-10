@@ -335,6 +335,17 @@ def _languages(client_id: str, issues: dict[str, list[SourceIssue]]) -> list[str
         return sorted({lang for lang in found if lang})
 
 
+def _translated_from(client_id: str) -> str | None:
+    """The default language when ``generator.translate_copy`` is on, else ``None`` (§4c's text)."""
+    try:
+        cfg = get_client(client_id)
+    except (ConfigError, ExportParseError):
+        return None
+    if cfg.generator is None or not cfg.generator.translate_copy:
+        return None
+    return cfg.wordpress.default_language
+
+
 def _scoped_issues(
     client_id: str,
     products: dict[str, ProductRecord],
@@ -690,6 +701,7 @@ def main(argv: list[str] | None = None) -> int:
         preface=preface,
         live=complete is not None,
         language_check=_language_check(client_id, products, live, data_dir),
+        translated_from=_translated_from(client_id),
     )
 
     name = "complete-data-quality-report.md" if complete is not None else "data-quality-report.md"

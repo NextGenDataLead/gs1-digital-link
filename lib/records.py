@@ -209,6 +209,9 @@ class PlanRow(BaseModel):
     #: already carries — see :func:`lib.state.keeps_live_copy`. ``False`` on every row that carries
     #: copy, and on every NEW row, which E21 still holds when it has none.
     keeps_live_copy: bool = False
+    #: ``generator.translate_copy``: the default language's text this row's copy was written from,
+    #: recorded on the state entry when the row is written. ``None`` on a row carrying no copy.
+    copy_basis: str | None = None
 
 
 class SkipReason(StrEnum):
@@ -492,6 +495,10 @@ class StateEntry(BaseModel):
     video_file: str | None = None
     video_failed: str | None = None
     video_failed_retry: bool | None = None
+    #: ``generator.translate_copy``: the fingerprint of the default language's GS1 text the
+    #: page's copy was last written from (:func:`lib.copy_translation.copy_basis`). ``None`` when
+    #: it was never recorded — every page written before translate_copy, or without it.
+    copy_basis: str | None = None
 
     @model_validator(mode="before")
     @classmethod

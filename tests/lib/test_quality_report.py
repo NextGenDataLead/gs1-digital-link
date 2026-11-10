@@ -1459,3 +1459,12 @@ def test_the_matrix_header_names_both_attributes_and_the_legend_says_which_wins(
 
     assert "product·3309/3297" in _headers(md)
     assert "`product·3309/3297` reads attr 3309, and attr 3297 where 3309 is empty" in md
+
+
+def test_thin_text_says_every_page_follows_the_default_language_when_translated() -> None:
+    """generator.translate_copy: a short French text no longer makes the French page say less."""
+    md = _render(translated_from="nl")
+    plain = _render()
+
+    assert "Every page is written from the nl marketing text" in md
+    assert "Each language's page is written only from that language's own" in plain

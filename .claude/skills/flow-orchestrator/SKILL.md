@@ -200,6 +200,10 @@ other eleven keep their numbers so every cross-reference to "step 8" — here, i
    - **In-session (no API key):** run `python -m scripts.run_generate {client} --emit`, then invoke the
      `content-generator` skill to write the copy and `--validate` it; that skill presents the review.
    - **Headless:** run `python -m scripts.run_generate {client} --backend api` (needs the API key).
+   - **`generator.translate_copy: true`** (the client's pages in other languages are translations
+     of the default language's): **headless only** — `--emit` and `--validate` refuse. A line
+     `NOT translated {gtin}/{language}: …` means that page keeps its text this run and is asked
+     for again next run; report each one, never work around it.
    **Copy is written fresh every run and never reused**, and the batch is this run's rows — the
    `(GTIN, language)` units that classify NEW or CHANGED. An already-live, unchanged page is not
    republished, so no copy is written for it; `--emit` says how many it set aside for that reason.

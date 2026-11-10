@@ -47,6 +47,7 @@ from lib.batch import Chosen, in_force
 from lib.categories import assign_categories, coverage_report
 from lib.committed_config import committed_path, matches
 from lib.config import DEFAULT_CLIENTS_PATH, ClientConfig, get_client, load_clients
+from lib.copy_translation import due_units
 from lib.data_dir import CODE_ROOT
 from lib.errors import (
     ConfigError,
@@ -525,13 +526,51 @@ def units_needing_copy(
         )
     except ConfigError:
         return None  # check_config reports the missing patterns
-    return {
+    written = {
         unit
         for unit, kind in classified.items()
         if kind in WILL_BE_WRITTEN
         and unit not in held
         and (include_live or not keeps_live_copy(state.entries.get(unit[0], {}).get(unit[1]), kind))
     }
+    return written | (_copy_due(cfg, scoped_products, state) - held.keys())
+
+
+def out_of_date_units(
+    cfg: ClientConfig, scoped_products: list[ProductRecord]
+) -> set[tuple[str, str]]:
+    """The live units whose copy is out of date under ``translate_copy``, holds aside.
+
+    Empty when the setting is off, or when state will not read (``check_state_file`` says so).
+    """
+    try:
+        state = peek_state(cfg.client_id)
+        held = held_units(cfg, scoped_products)
+    except (StateError, VideoMapError):
+        return set()
+    return _copy_due(cfg, scoped_products, state) - held.keys()
+
+
+def _copy_due(
+    cfg: ClientConfig, products: list[ProductRecord], state: State
+) -> set[tuple[str, str]]:
+    """Live units whose copy is out of date under ``generator.translate_copy`` — empty otherwise.
+
+    Needed whatever their classification: an unchanged page whose copy was written from Dutch
+    text that has since changed, or from its own language before the setting, is due a new text
+    and nothing else would ask for one (:mod:`lib.copy_translation`).
+    """
+    if cfg.generator is None or not cfg.generator.translate_copy:
+        return set()
+    context = generation_context(
+        cfg.wordpress.languages,
+        cfg.wordpress.default_language,
+        cfg.generator.prompt_version,
+        cfg.export.gdsn_map,
+        cfg.export.gdsn_extras,
+        translate_copy=True,
+    )
+    return due_units(products, state, context)
 
 
 def _excluded_aside(unchanged: int, held: int, keeps_live: int = 0) -> str:
@@ -660,6 +699,7 @@ def check_generation_results(cfg: ClientConfig, products: list[ProductRecord]) -
         cfg.generator.prompt_version,
         cfg.export.gdsn_map,
         cfg.export.gdsn_extras,
+        translate_copy=cfg.generator.translate_copy,
     )
     try:
         results = load_results(cfg.client_id)
@@ -680,8 +720,14 @@ def check_generation_results(cfg: ClientConfig, products: list[ProductRecord]) -
                 "unchanged": unchanged,
             },
         )
-    missing = missing_copy(products, results, context, units=wanted)
-    covered = total - len(missing)
+    every_missing = missing_copy(products, results, context, units=wanted)
+    covered = total - len(every_missing)
+    # A live page whose copy is merely out of date (translate_copy) is not dropped without new
+    # copy: it keeps its text this run and is asked for again next run. Counted apart, so a
+    # translation that keeps failing is a warning rather than a FAIL the doctor never clears.
+    due = set() if wanted is None else out_of_date_units(cfg, products)
+    lagging = [unit for unit in every_missing if unit in due]
+    missing = [unit for unit in every_missing if unit not in due]
     data: dict[str, object] = {
         "total": total,
         "covered": covered,
@@ -697,7 +743,19 @@ def check_generation_results(cfg: ClientConfig, products: list[ProductRecord]) -
         "keeps_live": keeps_live,
         **_product_counts(products, wanted, held_by_unit, live),
     }
+    data["out_of_date_pending"] = len(lagging)
     excluded = _excluded_aside(unchanged, held, keeps_live)
+    if not missing and lagging:
+        return CheckResult(
+            "generation_results",
+            "Generated copy for this run",
+            Status.WARN,
+            f"{total} unit(s) to publish, {covered} covered; {len(lagging)} live page(s) whose "
+            f"copy is out of date have no new copy yet — they keep their text this run{excluded}",
+            remedy="Generate again with `--backend api`; its `NOT translated` lines say why a "
+            "page was not translated.",
+            data=data,
+        )
     if not missing:
         return CheckResult(
             "generation_results",

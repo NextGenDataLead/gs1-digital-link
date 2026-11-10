@@ -2698,3 +2698,47 @@ def test_keeping_live_text_is_refused_for_a_page_the_ledger_does_not_have(
     assert code != 0
     assert rec.wp == []
     assert GTIN_A not in load_state("acme").entries
+
+
+# --- generator.translate_copy: what the copy was written from -------------------------------
+
+
+def _run(tmp_path: Path, name: str, *rows: PlanRow) -> int:
+    return run_execute.main(["acme", "--plan", str(_write_json(tmp_path / name, _plan(*rows)))])
+
+
+def test_a_page_written_with_copy_records_what_it_was_written_from_and_keeps_it_after(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The next plan compares this basis with the Dutch text to decide whether copy is stale."""
+    monkeypatch.chdir(tmp_path)
+    _install(monkeypatch, _make_config())
+    assert _run(tmp_path, "a.json", _row().model_copy(update={"copy_basis": "basis-1"})) == 0
+    assert load_state("acme").entries[GTIN_A]["nl"].copy_basis == "basis-1"
+
+    keeping = _row().model_copy(
+        update={"classification": PlanClassification.CHANGED, "keeps_live_copy": True}
+    )
+    assert _run(tmp_path, "b.json", keeping) == 0
+    assert load_state("acme").entries[GTIN_A]["nl"].copy_basis == "basis-1"
+
+    # New copy written without translate_copy: the page is no longer a translation of anything.
+    own = _row().model_copy(update={"classification": PlanClassification.CHANGED})
+    assert _run(tmp_path, "c.json", own) == 0
+    assert load_state("acme").entries[GTIN_A]["nl"].copy_basis is None
+
+
+def test_translating_a_page_records_the_basis_on_the_default_page_left_as_it_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The switch: Dutch untouched, but a later change to its GS1 text must still be seen."""
+    monkeypatch.chdir(tmp_path)
+    _install(monkeypatch, _make_config())
+    assert _run(tmp_path, "a.json", _row()) == 0
+    assert load_state("acme").entries[GTIN_A]["nl"].copy_basis is None
+
+    french = _row(language="fr").model_copy(update={"copy_basis": "basis-1"})
+    assert _run(tmp_path, "b.json", french) == 0
+
+    entries = load_state("acme").entries[GTIN_A]
+    assert (entries["nl"].copy_basis, entries["fr"].copy_basis) == ("basis-1", "basis-1")
