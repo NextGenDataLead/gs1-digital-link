@@ -8,6 +8,7 @@ missing/malformed tool call, retry) each raise the expected typed error. No real
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from lib import client_files
 from lib.config import GeneratorConfig
 from lib.errors import GeneratorError, LLMAPIError, MissingCredentialError
 from lib.generator import MODE_TIGHTEN, GenerationInputs, GenerationRequest, TranslationGap
+from lib.language_check import CheckRequest, FieldValues, Finding
 from lib.llm import ANTHROPIC_VERSION, AnthropicClient, load_voice_template
 
 _KEY_ENV = "TEST_ANTHROPIC_KEY"
@@ -404,3 +406,152 @@ def test_load_voice_template_missing_names_both_places(
     where = rf"input{sep}acme{sep}prompts{sep}generation\.v9\.md or .*code"
     with pytest.raises(GeneratorError, match=where):
         load_voice_template("acme", "v9")
+
+
+# --- the cross-language check (lib.language_check) ----------------------------------
+
+
+def _check_request() -> CheckRequest:
+    return CheckRequest(
+        gtin="08713195006109",
+        default_language="nl",
+        fields=[
+            FieldValues(
+                field="description_short",
+                label="MarketingInformation attr 1083",
+                values={"fr": "Brosse pour vos cheveux", "nl": "Borstel voor je huisdier"},
+            )
+        ],
+        fingerprint="fp",
+    )
+
+
+def _check_response(findings: list[dict[str, str]]) -> dict[str, Any]:
+    block = {
+        "type": "tool_use",
+        "id": "tu_2",
+        "name": "report_language_disagreements",
+        "input": {"findings": findings},
+    }
+    return {"stop_reason": "tool_use", "content": [block]}
+
+
+def test_compare_languages_sends_both_values_reference_first_through_its_own_tool(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(_KEY_ENV, "sk-test-123")
+    finding = {
+        "field": "description_short",
+        "language": "fr",
+        "verdict": "differs",
+        "note": "The French text is about human hair; the Dutch about pets.",
+    }
+    httpx_mock.add_response(json=_check_response([finding]))
+
+    with AnthropicClient(_config(), "", sleep=lambda _: None) as client:
+        result = client.compare_languages(_check_request())
+
+    assert result.findings == [Finding.model_validate(finding)]
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["tool_choice"] == {"type": "tool", "name": "report_language_disagreements"}
+    assert body["thinking"] == {"type": "disabled"}
+    assert "temperature" not in body
+    assert body["system"]  # the check's own instruction, not the (empty) voice
+    message = body["messages"][0]["content"]
+    assert message.index("nl: Borstel voor je huisdier") < message.index(
+        "fr: Brosse pour vos cheveux"
+    )
+    assert "Reference language: nl" in message
+
+
+def test_compare_languages_with_no_disagreement_returns_no_findings(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(_KEY_ENV, "sk-test-123")
+    httpx_mock.add_response(json=_check_response([]))
+
+    with AnthropicClient(_config(), "", sleep=lambda _: None) as client:
+        assert client.compare_languages(_check_request()).findings == []
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        _check_response([{"field": "x", "language": "fr", "verdict": "similar", "note": ""}]),
+        _check_response([{"field": "x"}]),
+        {"stop_reason": "end_turn", "content": [{"type": "text", "text": "they agree"}]},
+        {**_check_response([]), "stop_reason": "max_tokens"},
+    ],
+    ids=["unknown-verdict", "malformed-finding", "no-tool-call", "cut-off"],
+)
+def test_an_unusable_check_answer_is_an_error_not_an_empty_result(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> None:
+    monkeypatch.setenv(_KEY_ENV, "sk-test-123")
+    httpx_mock.add_response(json=response)
+
+    with AnthropicClient(_config(), "", sleep=lambda _: None) as client, pytest.raises(LLMAPIError):
+        client.compare_languages(_check_request())
+
+
+def test_findings_sent_as_a_json_string_are_still_read(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seen live, once in 49: the whole answer serialised into the ``findings`` field."""
+    monkeypatch.setenv(_KEY_ENV, "sk-test-123")
+    finding = {"field": "description_short", "language": "fr", "verdict": "differs", "note": "x"}
+    response = _check_response([])
+    response["content"][0]["input"] = {"findings": json.dumps({"findings": [finding]})}
+    httpx_mock.add_response(json=response)
+
+    with AnthropicClient(_config(), "", sleep=lambda _: None) as client:
+        result = client.compare_languages(_check_request())
+
+    assert result.findings == [Finding.model_validate(finding)]
+
+
+def test_a_200_that_is_not_json_is_an_api_error(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(_KEY_ENV, "sk-test-123")
+    httpx_mock.add_response(status_code=200, text="<html>gateway</html>")
+
+    with (
+        AnthropicClient(_config(), "", sleep=lambda _: None) as client,
+        pytest.raises(LLMAPIError, match="not JSON"),
+    ):
+        client.compare_languages(_check_request())
+
+
+def test_the_check_has_room_for_its_answer_and_a_reference_with_a_value(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A field the default language leaves blank is compared against a language that has it."""
+    monkeypatch.setenv(_KEY_ENV, "sk-test-123")
+    httpx_mock.add_response(json=_check_response([]))
+    request = _check_request().model_copy(
+        update={
+            "fields": [
+                FieldValues(field="functional_name", label="3301", values={"fr": "a", "en": "b"})
+            ]
+        }
+    )
+
+    with AnthropicClient(_config(), "", sleep=lambda _: None) as client:
+        client.compare_languages(request)
+
+    body = json.loads(httpx_mock.get_requests()[-1].content)
+    assert body["max_tokens"] >= 4096  # noqa: PLR2004 — the check's own budget
+    assert "functional_name (3301), reference fr:" in body["messages"][0]["content"]
+
+
+def test_changing_the_check_prompt_means_bumping_check_version() -> None:
+    """Stored verdicts are reused while ``CHECK_VERSION`` is unchanged, so a new prompt with the
+    old version would keep showing the old prompt's judgments. Update both together."""
+    from lib import llm  # noqa: PLC0415
+    from lib.language_check import CHECK_VERSION  # noqa: PLC0415
+
+    surface = llm._COMPARE_SYSTEM + json.dumps(llm._COMPARE_TOOL, sort_keys=True)
+    digest = hashlib.sha256(surface.encode()).hexdigest()[:12]
+
+    assert (CHECK_VERSION, digest) == ("v1", "6e024bc89a83")

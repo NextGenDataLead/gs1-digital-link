@@ -87,6 +87,8 @@ from lib.generator import (
     save_results,
 )
 from lib.holds import held_units
+from lib.language_check import results_path as check_results_path
+from lib.language_check_api import run_check
 from lib.llm import AnthropicClient, load_voice_template
 from lib.media_video import canon_gtin
 from lib.preflight import in_scope, units_needing_copy
@@ -508,6 +510,26 @@ def _run_api_backend(
     return len(items), gen.model
 
 
+def _compare_languages(cfg: ClientConfig, products_path: Path) -> str:
+    """Bring the cross-language comparison (report §4e) up to date, and say what it did.
+
+    Run here so the shell's Generate button keeps the comparison current without a second step.
+    Over every in-scope product, not only the units this run writes copy for: the report describes
+    the whole batch. A failure does not fail the run — the copy is already written, and the report
+    says which products are not yet compared — but it is said, never swallowed.
+    """
+    path = check_results_path(_data_path(cfg.client_id, ""))
+    try:
+        run = run_check(cfg, _load_products(products_path), path)
+    except Exception as exc:  # noqa: BLE001 — the copy is written; nothing here may undo that
+        _log.warning("language comparison failed", exc_info=True)
+        return f"languages NOT compared ({exc}); the report lists those products as not compared"
+    done = f"compared languages for {run.asked} product(s), kept {run.kept} unchanged"
+    if run.failed:
+        done += f"; {len(run.failed)} NOT compared ({run.failed[0][1]})"
+    return done
+
+
 # --- Summaries ---------------------------------------------------------------
 
 
@@ -644,6 +666,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.backend == "api":
             written, api_model = _run_api_backend(cfg, requests, prompt_version, now)
             results = load_results(cfg.client_id)
+            compared = _compare_languages(cfg, products_path)
         elif args.validate:
             override = Path(args.results) if args.results else None
             results = load_results(cfg.client_id, override)
@@ -673,6 +696,7 @@ def main(argv: list[str] | None = None) -> int:
     coverage = _coverage(products, results, context, prepared)
     if args.backend == "api":
         print(f"generated {written} via API ({api_model}); {coverage}", file=sys.stderr)
+        print(compared, file=sys.stderr)
     elif args.validate:
         extra = f", {checked.surplus} surplus (not needed this run)" if checked.surplus else ""
         print(

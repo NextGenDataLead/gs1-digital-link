@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING, NamedTuple
 from lib.gdsn import FALLBACK_ISSUE, is_mandatory
 from lib.mandatory import MandatoryGap, value_for
 from lib.quality_report_balance import THIN_TEXT, TITLE, balance_lines
+from lib.quality_report_languages import language_lines
+from lib.quality_report_languages import summary_row as language_summary_row
 from lib.quality_report_video import VideoReport, held_count, summary_rows, video_lines
 from lib.records import ProductRecord, SourceIssue
 from lib.report_markdown import cell as _cell
@@ -29,6 +31,7 @@ from lib.report_markdown import table as _table
 
 if TYPE_CHECKING:
     from lib.gdsn import GdsnSource
+    from lib.language_check import LanguageReport
 
 #: Issue kinds emitted by the generator merge (``generated_issues.json``).
 _HELD = "missing_generation_input"
@@ -403,6 +406,7 @@ def _summary_lines(  # noqa: PLR0913 — one parameter per source feeding a summ
     mandatory_gaps: dict[str, list[MandatoryGap]],
     video_held: list[str],
     video: VideoReport | None,
+    language_check: LanguageReport | None = None,
 ) -> list[str]:
     by_kind = Counter(i.issue for i in generated_issues)
     held = {i.gtin for i in generated_issues if i.issue == _HELD}
@@ -492,6 +496,7 @@ def _summary_lines(  # noqa: PLR0913 — one parameter per source feeding a summ
             "Client (MyGS1)",
             "No — the page says less",
         ],
+        language_summary_row(language_check),
         [
             "Source",
             "Values translated to fill a language gap",
@@ -823,6 +828,7 @@ def _source_lines(  # noqa: PLR0913 — one list per subsection, plus what label
     fallback: list[SourceIssue],
     products: dict[str, ProductRecord],
     languages: list[str],
+    language_check: LanguageReport | None = None,
 ) -> list[str]:
     """§4 — source findings that are worth fixing but hold nothing.
 
@@ -860,6 +866,7 @@ def _source_lines(  # noqa: PLR0913 — one list per subsection, plus what label
         "",
         *balance_lines(thin, products, languages, _label),
         *_fallback_lines(fallback, products, languages),
+        *language_lines(language_check, products, languages, _label),
     ]
 
 
@@ -988,6 +995,7 @@ def render_quality_report(  # noqa: PLR0913 — a document renderer needs each s
     video: VideoReport | None = None,
     preface: list[str] | None = None,
     live: bool = False,
+    language_check: LanguageReport | None = None,
 ) -> str:
     """Render the consolidated data-quality report as markdown.
 
@@ -1025,6 +1033,9 @@ def render_quality_report(  # noqa: PLR0913 — a document renderer needs each s
         live: The complete report: titled so, its regenerate hint carries ``--complete``, and the
             run notes are left out — they describe one run, and beside every product the client
             sent they read as a claim about all of them.
+        language_check: §4e — source values that do not say the same in every language, from
+            :func:`lib.language_check.language_report`. ``None`` renders the subsection as one
+            line, so a report built without product data still numbers §4e.
 
     Returns:
         The full markdown document.
@@ -1052,6 +1063,7 @@ def render_quality_report(  # noqa: PLR0913 — a document renderer needs each s
             mandatory_gaps or {},
             video_held or [],
             video,
+            language_check,
         ),
         # Off for the complete report: the notes are about one run, and next to an
         # inventory of every live product they read as a claim about all of them.
@@ -1077,7 +1089,9 @@ def render_quality_report(  # noqa: PLR0913 — a document renderer needs each s
         ),
         *_blocking_lines(mandatory_gaps or {}, products, matrix, languages),
         *_review_lines(inferences, generated_count, products, client_id, languages),
-        *_source_lines(inconsistent, wrong_lang, thin, fallback, products, languages),
+        *_source_lines(
+            inconsistent, wrong_lang, thin, fallback, products, languages, language_check
+        ),
         *_translated_lines(translated, products, languages),
         *_category_lines(category_issues),
     ]

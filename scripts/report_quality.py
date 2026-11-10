@@ -50,10 +50,12 @@ from lib.env import load_env
 from lib.errors import (
     ConfigError,
     ExportParseError,
+    GeneratorError,
     StateError,
     VideoMapError,
 )
 from lib.gdsn import FALLBACK_ISSUE, THIN_TEXT_ISSUE, check_language_balance, source_label
+from lib.language_check import LanguageReport, load_checks, report_for, results_path
 from lib.mandatory import MandatoryGap, missing_mandatory
 from lib.media_video import (
     VideoCandidate,
@@ -138,6 +140,30 @@ def _scope(
     if live is None:
         return in_scope(cfg, list(products.values()))
     return [product for product in products.values() if product.gtin14 in live]
+
+
+def _language_check(
+    client_id: str,
+    products: dict[str, ProductRecord],
+    live: frozenset[str] | None,
+    data_dir: Path,
+) -> LanguageReport | None:
+    """§4e over the products in scope: missing values from the export, judgments from the file.
+
+    ``None`` when the config cannot be read — ``doctor`` reports that. An unreadable check file is
+    said on stderr and reported as nothing judged, rather than failing the whole report over one
+    section.
+    """
+    try:
+        cfg = get_client(client_id)
+    except (ConfigError, ExportParseError):
+        return None
+    try:
+        checks = load_checks(results_path(data_dir))
+    except GeneratorError as exc:
+        print(f"warning: {exc} — §4e shows missing values only", file=sys.stderr)
+        checks = None
+    return report_for(cfg, _scope(cfg, products, live), checks)
 
 
 def _publish_blocks(
@@ -663,6 +689,7 @@ def main(argv: list[str] | None = None) -> int:
         video=video,
         preface=preface,
         live=complete is not None,
+        language_check=_language_check(client_id, products, live, data_dir),
     )
 
     name = "complete-data-quality-report.md" if complete is not None else "data-quality-report.md"

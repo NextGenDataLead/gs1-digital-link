@@ -19,6 +19,14 @@ import yaml
 from lib import video_signoff_archive
 from lib.complete_scope import Complete
 from lib.config import get_client
+from lib.language_check import (
+    CheckedProduct,
+    CheckFile,
+    Finding,
+    check_request,
+    compared_fields,
+    save_checks,
+)
 from lib.live_inventory import PublishedTotals
 from lib.quality_report_video import SignoffReview
 from lib.records import LocalisedText, ProductRecord, SourceIssue
@@ -30,7 +38,9 @@ def _write(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _write_clients_yml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _write_clients_yml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, languages: list[str] | None = None
+) -> None:
     """Point the script at a config this test owns, instead of the operator's.
 
     `lib.config.DEFAULT_CLIENTS_PATH` is `<repo root>/clients.yml` — absolute, so `chdir(tmp_path)`
@@ -72,7 +82,7 @@ def _write_clients_yml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
                     "site_url": "https://example.test",
                     "username": "bot",
                     "app_password_env": "TEST_WP_PASS",
-                    "languages": ["nl"],
+                    "languages": languages or ["nl"],
                 },
                 "process_list": {
                     "path": str(tmp_path / "input" / "democlient" / "process-list.xlsx"),
@@ -597,3 +607,57 @@ def test_the_complete_report_asks_the_client_to_fill_the_preferred_attribute(
     assert "Client — MyGS1" in row
     assert "| 2 |" in row
     assert "§4d" in row
+
+
+# --- §4e: languages that do not say the same ---------------------------------------
+
+
+def test_the_report_shows_a_kept_judgment_and_a_missing_value_side_by_side(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The judgment is read from ``language_check.json`` only while it matches the export."""
+    monkeypatch.chdir(tmp_path)
+    data = _seed(tmp_path)
+    judged, half = "02987653007915", "02987653003276"
+    products = [
+        ProductRecord(
+            gtin=judged,
+            brand="Democlient",
+            product_name=LocalisedText(values={"nl": "LED-lamp", "fr": "Lampe LED"}),
+            description_short=LocalisedText(
+                values={"nl": "Magnetische lamp", "fr": "Lampe pour la cuisine"}
+            ),
+        ),
+        ProductRecord(
+            gtin=half, brand="Democlient", product_name=LocalisedText(values={"nl": "plasma"})
+        ),
+    ]
+    _write(data / "products.json", [p.model_dump(mode="json") for p in products])
+    _write_process_list(tmp_path, [judged, half])
+    _write_clients_yml(tmp_path, monkeypatch, languages=["nl", "fr"])
+    cfg = report_quality.get_client("democlient")
+    request = check_request(products[0], compared_fields(cfg.export), ["nl", "fr"], "nl")
+    assert request is not None
+    finding = Finding(
+        field="description_short", language="fr", verdict="differs", note="Kitchen, not magnet."
+    )
+    save_checks(
+        data / "language_check.json",
+        CheckFile(
+            client_id="democlient",
+            provenance="api:test",
+            results=[
+                CheckedProduct(gtin=judged, fingerprint=request.fingerprint, findings=[finding])
+            ],
+        ),
+    )
+
+    assert report_quality.main(["democlient"]) == 0
+
+    text = (tmp_path / "output" / "democlient" / "data-quality-report.md").read_text("utf-8")
+    section = text[text.index("### 4e.") :]
+    assert "2 of 2 products compared." in section
+    assert "| Magnetische lamp | Lampe pour la cuisine | fr: says something else — Kitchen" in (
+        section
+    )
+    assert "| plasma |  | fr: missing |" in section
