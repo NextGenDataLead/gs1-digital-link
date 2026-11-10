@@ -244,6 +244,29 @@ def _prepare(
     )
 
 
+def _translated_scope(
+    cfg: ClientConfig,
+    context: GenerationContext,
+    products: list[ProductRecord],
+    units: set[tuple[str, str]],
+) -> set[tuple[str, str]]:
+    """Under ``translate_copy``, drop each default-language unit the plan will not write.
+
+    A translation translates this run's default-language copy when this run has some, so that copy
+    must be what the page will carry. Named products are asked for in every language; where the
+    plan would leave the default-language page alone — unchanged, or live from before the setting
+    (:func:`lib.copy_translation.untouched_defaults`) — its copy would be translated and never
+    published, and the two pages would disagree. Without it, the translation reads the live page.
+    """
+    if not context.translate_copy:
+        return units
+    written = units_needing_copy(cfg, products, include_live=True)
+    if written is None:
+        return units
+    default = context.default_language
+    return {unit for unit in units if unit[1] != default or unit in written}
+
+
 def _for_named(
     cfg: ClientConfig,
     context: GenerationContext,
@@ -279,7 +302,12 @@ def _for_named(
             len(missing),
             ", ".join(sorted(missing)),
         )
-    units = {(product.gtin, language) for product in ordered for language in context.languages}
+    units = _translated_scope(
+        cfg,
+        context,
+        ordered,
+        {(product.gtin, language) for product in ordered for language in context.languages},
+    )
     held = held_units(cfg, ordered)
     if held:
         _log.warning(

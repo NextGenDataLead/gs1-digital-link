@@ -47,7 +47,7 @@ from lib.batch import Chosen, in_force
 from lib.categories import assign_categories, coverage_report
 from lib.committed_config import committed_path, matches
 from lib.config import DEFAULT_CLIENTS_PATH, ClientConfig, get_client, load_clients
-from lib.copy_translation import due_units
+from lib.copy_translation import due_units, untouched_defaults
 from lib.data_dir import CODE_ROOT
 from lib.errors import (
     ConfigError,
@@ -533,7 +533,9 @@ def units_needing_copy(
         and unit not in held
         and (include_live or not keeps_live_copy(state.entries.get(unit[0], {}).get(unit[1]), kind))
     }
-    return written | (_copy_due(cfg, scoped_products, state) - held.keys())
+    return (written | (_copy_due(cfg, scoped_products, state) - held.keys())) - _untouched(
+        cfg, state
+    )
 
 
 def out_of_date_units(
@@ -549,6 +551,13 @@ def out_of_date_units(
     except (StateError, VideoMapError):
         return set()
     return _copy_due(cfg, scoped_products, state) - held.keys()
+
+
+def _untouched(cfg: ClientConfig, state: State) -> set[tuple[str, str]]:
+    """Under ``translate_copy``, the live default-language pages it must not rewrite."""
+    if cfg.generator is None or not cfg.generator.translate_copy:
+        return set()
+    return untouched_defaults(state, cfg.wordpress.default_language)
 
 
 def _copy_due(
