@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-10
+
 ### Added
 - **French copy can be the Dutch copy, translated: `generator.translate_copy`.** On, the copy is
   written in the default language only, and every other language's tagline and Eigenschappen are
@@ -19,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   translation that fails, or comes back with a different number of lines, is named
   (`NOT translated …`), leaves that page alone and is asked for again next run. API backend only:
   `--emit`/`--validate` refuse. Off by default — nothing changes until a client sets it.
+  A live default-language page from before the setting is never rewritten by it, not even when
+  ticked under *Include already-published pages* — that is how the shell asks for the switch —
+  and the Content screen lists the pages it did not translate. **Every machine that publishes
+  needs this release before the setting is used:** an older one drops `copy_basis` from the
+  ledger, and every translated page is then due again.
 - **The data-quality report compares the languages (§4e).** Every attribute the client fills in per
   language in MyGS1 — the title (3309/3297), the product variation (3332), the marketing text
   (1083), the feature/benefit lines (1067), the functional name (3301) and the description (3318) —
@@ -151,7 +158,8 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.5...v0.6.0
 [0.5.3]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.0...v0.5.1

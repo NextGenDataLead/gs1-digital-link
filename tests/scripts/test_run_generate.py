@@ -1051,3 +1051,45 @@ def test_translate_copy_refuses_the_in_session_producer(
 
     assert run_generate.main(["democlient"]) == 2
     assert "--backend api" in capsys.readouterr().err
+
+
+def test_ticking_a_live_product_translates_its_live_dutch_page_and_leaves_it_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, httpx_mock: HTTPXMock
+) -> None:
+    """The switch from the shell: Override ticks the product, which names it with --gtins.
+
+    Named products are asked for in every language, so the Dutch copy was regenerated and the
+    French translated from that — text no page would carry, the Dutch page being left as it is.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TEST_KEY", "sk-test")
+    _patch_client(monkeypatch, _translating())
+    _write_products("democlient", [_bilingual()])
+    _write_voice()
+    entry = StateEntry(
+        wp_page_id=7,
+        wp_url="https://wp.test/p/",
+        wp_featured_media_id=None,
+        content_hash="h",
+        gs1_link_set_hash="g",
+        last_run=datetime(2026, 11, 1, tzinfo=UTC),
+    )
+    save_state(State(client_id="democlient", entries={GTIN_A: {"nl": entry, "fr": entry}}))
+    read: list[dict[str, int]] = []
+
+    def site(_cfg: object) -> object:
+        def read_live(pages: dict[str, int]) -> dict[str, list[str]]:
+            read.append(dict(pages))
+            return {GTIN_A: ["Live slogan", "Live punt"]}
+
+        return read_live
+
+    monkeypatch.setattr("lib.copy_translation_run.site_reader", site)
+    httpx_mock.add_response(json=_tool_response(["Slogan vivant", "Point vivant"]))
+
+    assert run_generate.main(["democlient", "--backend", "api", "--gtins", GTIN_A]) == 0
+
+    (only,) = httpx_mock.get_requests()
+    assert "  - Live slogan\n  - Live punt" in json.loads(only.content)["messages"][0]["content"]
+    assert read == [{GTIN_A: 7}]
+    assert [i.language for i in load_results("democlient").results] == ["fr"]

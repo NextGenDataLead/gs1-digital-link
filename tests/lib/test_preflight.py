@@ -1525,3 +1525,28 @@ def test_units_needing_copy_includes_a_live_page_whose_copy_is_out_of_date(
     result = check_generation_results(translating, [product])
     assert result.status is Status.WARN
     assert "1 live page(s) whose copy is out of date" in result.detail
+
+
+def test_a_live_dutch_page_from_before_translate_copy_is_never_asked_for_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Not even for "include already-published pages": the switch leaves it as it is."""
+    monkeypatch.chdir(tmp_path)
+    wordpress = _make_config().wordpress.model_copy(update={"languages": ["nl", "fr"]})
+    cfg = _make_config(
+        wordpress=wordpress, generator=GeneratorConfig(enabled=True, translate_copy=True)
+    )
+    product = ProductRecord(
+        gtin=GTIN_A, brand="Acme", product_name=LocalisedText(values={"nl": "R", "fr": "S"})
+    )
+    entry = StateEntry(
+        wp_page_id=1,
+        wp_url="https://wp.test/x",
+        wp_featured_media_id=None,
+        content_hash="stale",
+        gs1_link_set_hash="g" * 64,
+        last_run=datetime(2026, 11, 1, tzinfo=UTC),
+    )
+    save_state(State(client_id="acme", entries={GTIN_A: {"nl": entry, "fr": entry}}))
+
+    assert units_needing_copy(cfg, [product], include_live=True) == {(GTIN_A, "fr")}

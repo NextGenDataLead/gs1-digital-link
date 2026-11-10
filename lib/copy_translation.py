@@ -88,6 +88,23 @@ def due_languages(
     )
 
 
+def untouched_defaults(state: State, default_language: str) -> set[tuple[str, str]]:
+    """Live default-language pages whose text predates ``translate_copy``: never rewritten by it.
+
+    The switch leaves them as they are (operator, 2026-11-10) and translates them as they are
+    live. New copy for one — asked for by ticking a live product — would be translated in its
+    place, and the translation then says what no page does. Their first translation records a
+    basis on them, and from then on they are ordinary.
+    """
+    return {
+        (gtin, default_language)
+        for gtin, entries in state.entries.items()
+        if (entry := entries.get(default_language)) is not None
+        and _is_live(entry)
+        and entry.copy_basis is None
+    }
+
+
 def due_units(
     products: list[ProductRecord], state: State, context: GenerationContext
 ) -> set[tuple[str, str]]:

@@ -437,7 +437,18 @@ def _generate_panel(
         output: list[str] = []
         result = await runner.stream(runner.run_generate_argv(cid, picked), output.append)
         await refresh()
-        if result.ok:
+        untranslated = [line for line in output if line.startswith(_NOT_TRANSLATED)]
+        if result.ok and untranslated:
+            # generator.translate_copy: those pages keep their text this run and are asked for
+            # again next run. Said here because a successful run's output is otherwise not shown.
+            theme.announce(
+                "Text written, some not translated",
+                f"{len(untranslated)} page(s) were not translated and keep their text for now. "
+                "Generate again later; if the same ones stay, send the list below.",
+                kind="warn",
+                detail="\n".join(untranslated),
+            )
+        elif result.ok:
             theme.announce(
                 "Text written",
                 f"{len(picked)} product(s) were written. Read them below before publishing.",
@@ -544,6 +555,9 @@ def _entries(entries: dict[str, Any], languages: list[str], results_path: Path) 
             "note"
         )
 
+
+#: How ``run_generate`` names a page it did not translate (``generator.translate_copy``).
+_NOT_TRANSLATED = "NOT translated "
 
 #: How much of a failed command's output to put in the dialog. Enough for a traceback's tail,
 #: short enough that the Close button stays on screen without scrolling to it.
