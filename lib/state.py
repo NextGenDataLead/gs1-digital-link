@@ -54,7 +54,7 @@ from lib.records import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Collection, Mapping
 
     from lib.config import WordPressConfig
     from lib.gdsn import GdsnSource
@@ -383,6 +383,15 @@ def _classify(
     return PlanClassification.CHANGED
 
 
+def _with_copy_diff(
+    diff: dict[str, tuple[str, str]] | None, *, due: bool
+) -> dict[str, tuple[str, str]] | None:
+    """``diff`` plus a ``copy`` line when the row's copy was out of date (translate_copy)."""
+    if not due:
+        return diff
+    return {**(diff or {}), "copy": ("out of date", "rewritten")}
+
+
 def _row_diff(  # noqa: PLR0913 — one argument per recorded field the diff compares
     prior: StateEntry | None,
     classification: PlanClassification,
@@ -583,6 +592,8 @@ def diff_against_state(  # noqa: PLR0913 — planning needs the products, baseli
     video_gate: VideoGate | None = None,
     hash_source: Mapping[str, ProductRecord] | None = None,
     name_required: bool = True,
+    copy_due: Collection[tuple[str, str]] = frozenset(),
+    copy_bases: Mapping[str, str] | None = None,
 ) -> PlanDiff:
     """Classify each ``(GTIN, language)`` against prior state, building plan rows (§4.8, §8.2).
 
@@ -651,6 +662,12 @@ def diff_against_state(  # noqa: PLR0913 — planning needs the products, baseli
             on it beats silently hashing the enriched record for the one GTIN that was forgotten,
             which would reclassify exactly that row and nothing else. Defaults to ``None``, which
             hashes each product itself.
+        copy_due: ``generator.translate_copy``: the live units whose copy is out of date
+            (:func:`lib.copy_translation.due_units`). Such a unit that carries copy this run is
+            CHANGED even when nothing else is — the copy is the change; one that carries none
+            classifies as it otherwise would, and keeps its text.
+        copy_bases: ``gtin -> copy_basis`` under ``translate_copy``, recorded on each row that
+            carries copy so the state entry says what that copy was written from.
         name_required: When False (a links-only plan), a language with no ``product_name`` is
             kept rather than dropped (E18): it writes no page, and its name is only the label of
             its link in the GS1 record, so it borrows the default language's name, or failing
@@ -732,7 +749,11 @@ def diff_against_state(  # noqa: PLR0913 — planning needs the products, baseli
                 video_on_disk=on_disk,
             )
             tagline = product.generated_tagline
-            copyless = require_generated_copy and not (tagline and tagline.values.get(language))
+            has_copy = bool(tagline and tagline.values.get(language))
+            copyless = require_generated_copy and not has_copy
+            due = has_copy and (product.gtin, language) in copy_due
+            if due and unit.classification is PlanClassification.UNCHANGED:
+                unit = unit._replace(classification=PlanClassification.CHANGED)
             keeps_live = copyless and keeps_live_copy(prior, unit.classification)
             if (
                 copyless  # E21
@@ -757,16 +778,20 @@ def diff_against_state(  # noqa: PLR0913 — planning needs the products, baseli
                     slug=unit.slug,
                     content_hash=unit.content_hash,
                     target_url=unit.target_url,
-                    diff=_row_diff(
-                        prior,
-                        unit.classification,
-                        title,
-                        unit.target_url,
-                        video_file,
-                        video_on_disk=on_disk,
+                    diff=_with_copy_diff(
+                        _row_diff(
+                            prior,
+                            unit.classification,
+                            title,
+                            unit.target_url,
+                            video_file,
+                            video_on_disk=on_disk,
+                        ),
+                        due=due,
                     ),
                     product=product,
                     keeps_live_copy=keeps_live,
+                    copy_basis=(copy_bases.get(product.gtin) if copy_bases and has_copy else None),
                 )
             )
     return PlanDiff(rows=rows, skipped=skipped)

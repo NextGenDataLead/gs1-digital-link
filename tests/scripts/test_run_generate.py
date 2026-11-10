@@ -964,3 +964,90 @@ def test_gtins_never_reports_a_negative_unchanged_count(
     run_generate.main(["democlient", "--emit", "--gtins", GTIN_A])
 
     assert "-" not in capsys.readouterr().err.split("without")[-1]
+
+
+# --- generator.translate_copy ------------------------------------------------------------
+
+
+def _translating() -> ClientConfig:
+    return _make_config(
+        languages=["nl", "fr"],
+        generator=GeneratorConfig(
+            enabled=True,
+            model="claude-sonnet-5",
+            prompt_version="v1",
+            api_key_env="TEST_KEY",
+            translate_copy=True,
+        ),
+    )
+
+
+def _bilingual() -> ProductRecord:
+    return _product().model_copy(
+        update={
+            "product_name": LocalisedText(values={"nl": "Bewateringpin", "fr": "Pique d'arrosage"}),
+            "description_short": LocalisedText(
+                values={"nl": "Water voor je planten", "fr": "Pour vos cheveux"}
+            ),
+        }
+    )
+
+
+def test_the_french_copy_is_the_dutch_copy_translated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, httpx_mock: HTTPXMock
+) -> None:
+    """Dutch is written first, from Dutch; French is asked to translate exactly that."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TEST_KEY", "sk-test")
+    _patch_client(monkeypatch, _translating())
+    _write_products("democlient", [_bilingual()])
+    _write_voice()
+    httpx_mock.add_response(json=_tool_response(["Water op tijd", "Voor elke pot"]))
+    httpx_mock.add_response(json=_tool_response(["L'eau à temps", "Pour chaque pot"]))
+
+    assert run_generate.main(["democlient", "--backend", "api"]) == 0
+
+    dutch, french = (
+        json.loads(r.content)["messages"][0]["content"] for r in httpx_mock.get_requests()
+    )
+    assert "Water voor je planten" in dutch
+    assert "Pour vos cheveux" not in dutch + french  # the French GS1 text has no say
+    assert "  - Water op tijd\n  - Voor elke pot" in french
+    assert "exactly 2 usps" in french
+    assert {(i.language, tuple(i.usps)) for i in load_results("democlient").results} == {
+        ("nl", ("Water op tijd", "Voor elke pot")),
+        ("fr", ("L'eau à temps", "Pour chaque pot")),
+    }
+
+
+def test_a_translation_that_does_not_line_up_is_named_and_not_written(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    httpx_mock: HTTPXMock,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TEST_KEY", "sk-test")
+    _patch_client(monkeypatch, _translating())
+    _write_products("democlient", [_bilingual()])
+    _write_voice()
+    httpx_mock.add_response(json=_tool_response(["Water op tijd", "Voor elke pot"]))
+    httpx_mock.add_response(json=_tool_response(["Une seule ligne"]))
+
+    assert run_generate.main(["democlient", "--backend", "api"]) == 0
+
+    assert f"NOT translated {GTIN_A}/fr: the translation has 1 lines for 2" in (
+        capsys.readouterr().err
+    )
+    assert [i.language for i in load_results("democlient").results] == ["nl"]
+
+
+def test_translate_copy_refuses_the_in_session_producer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _patch_client(monkeypatch, _translating())
+    _write_products("democlient", [_bilingual()])
+
+    assert run_generate.main(["democlient"]) == 2
+    assert "--backend api" in capsys.readouterr().err

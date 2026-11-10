@@ -49,18 +49,21 @@ import json
 import logging
 import sys
 from collections import Counter
+from collections.abc import Collection
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, NamedTuple
+from typing import Any, Final, NamedTuple
 
 from pydantic import ValidationError
 
 from lib.categories import assign_categories
 from lib.config import ClientConfig, get_client
+from lib.copy_translation import copy_basis, due_units
 from lib.data_dir import enter_data_dir
 from lib.env import load_env
 from lib.errors import ConfigError, GeneratorError, ProcessListError, StateError, VideoMapError
 from lib.generator import (
+    GenerationContext,
     generation_context,
     load_results,
     merge_generated,
@@ -143,13 +146,14 @@ def _gate(
     return candidates, {"not_listed": len(products) - len(candidates)}
 
 
-def _pilot_gate(
+def _pilot_gate(  # noqa: PLR0913 — the gate needs the state, the tally and both exemptions
     products: list[ProductRecord],
     state: State,
     excluded: dict[str, int],
     gate: VideoGate | None,
     *,
     include_published: bool = False,
+    due: Collection[str] = frozenset(),
 ) -> tuple[list[ProductRecord], dict[str, int]]:
     """Drop GTINs that are already finished (§9.5), unless ``include_published``.
 
@@ -194,6 +198,11 @@ def _pilot_gate(
     classification that would notice the arrival (:func:`lib.state.video_arrived`), and the page
     serves no video forever while every run reports nothing to do. So a GTIN with an arriving video
     stays in, and the classification decides — CHANGED for that language only.
+
+    **Nor does it mean "its copy is current".** ``due`` holds the GTINs whose live copy is out of
+    date under ``generator.translate_copy`` (:func:`lib.copy_translation.due_units`). They stay
+    in for the same reason: the content step writes their new copy, and dropped here, no plan
+    would ever carry it — the copy would be paid for on every run and never published.
     """
     excluded = {**excluded, "already_present": 0}
     if include_published or gate is None or not gate.enforced:
@@ -214,7 +223,7 @@ def _pilot_gate(
     }
     kept: list[ProductRecord] = []
     for product in products:
-        if product.gtin14 in present:
+        if product.gtin14 in present and product.gtin not in due:
             excluded["already_present"] += 1
         else:
             kept.append(product)
@@ -282,6 +291,7 @@ def _generate_content(
         cfg.generator.prompt_version,
         cfg.export.gdsn_map,
         cfg.export.gdsn_extras,
+        translate_copy=cfg.generator.translate_copy,
     )
     return merge_generated(products, results, context)
 
@@ -355,8 +365,15 @@ def _build_plan(
     # it is its target, and ``run_execute`` refuses a target that does not serve immediately
     # before every GS1 write.
     gate = None if links_only else video_gate_for(cfg)
+    translation = None if links_only else _translation_context(cfg)
+    due = set() if translation is None else due_units(candidates, state, translation)
     candidates, excluded = _pilot_gate(
-        candidates, state, excluded, gate, include_published=include_published
+        candidates,
+        state,
+        excluded,
+        gate,
+        include_published=include_published,
+        due={gtin for gtin, _ in due},
     )
 
     candidates, category_issues = _assign_categories(cfg, candidates)
@@ -393,6 +410,7 @@ def _build_plan(
         video_gate=gate,
         hash_source=feed_view,
         name_required=not links_only,
+        **_copy_translation(translation, list(feed_view.values()), state),
     )
     rows = _mark_stale_links(cfg, rows, state)
     counts = {c: sum(1 for row in rows if row.classification is c) for c in PlanClassification}
@@ -560,6 +578,37 @@ def _skip_tally(skipped: list[SkippedUnit]) -> str:
     """
     counts = Counter(unit.reason for unit in skipped)
     return ", ".join(f"{n} {reason.value}" for reason, n in counts.most_common())
+
+
+def _translation_context(cfg: ClientConfig) -> GenerationContext | None:
+    """The generation context under ``generator.translate_copy``; ``None`` when it is off."""
+    if cfg.generator is None or not cfg.generator.translate_copy:
+        return None
+    return generation_context(
+        cfg.wordpress.languages,
+        cfg.wordpress.default_language,
+        cfg.generator.prompt_version,
+        cfg.export.gdsn_map,
+        cfg.export.gdsn_extras,
+        translate_copy=True,
+    )
+
+
+def _copy_translation(
+    context: GenerationContext | None, products: list[ProductRecord], state: State
+) -> dict[str, Any]:
+    """``copy_due`` and ``copy_bases`` for :func:`diff_against_state` under translate_copy.
+
+    Taken from the feed's own records: the basis is what the copy is written *from*, so it must
+    not see the copy. Empty without the setting (``context`` ``None``), which leaves every plan
+    exactly as it was.
+    """
+    if context is None:
+        return {}
+    return {
+        "copy_due": due_units(products, state, context),
+        "copy_bases": {product.gtin: copy_basis(product, context) for product in products},
+    }
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:

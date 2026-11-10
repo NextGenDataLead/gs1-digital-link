@@ -1562,3 +1562,34 @@ def test_a_gs1_link_that_matches_its_page_stays_unchanged(
     assert run_plan.main(["acme", "--products", str(products), "--links-only"]) == 0
 
     assert [r.classification for r in _read_plan().rows] == [PlanClassification.UNCHANGED]
+
+
+def test_a_live_product_whose_copy_is_out_of_date_survives_the_pilot_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Review finding: dropped as "finished", its translation was paid for and never planned."""
+    monkeypatch.chdir(tmp_path)
+    vmap = _write_video_map(tmp_path, both=[GTIN_A])
+    cfg = _bilingual_config(MediaConfig(restrict_to_mapped_gtins=True, video_map_path=vmap))
+    translating = cfg.model_copy(
+        update={"generator": GeneratorConfig(enabled=True, translate_copy=True)}
+    )
+    entry = StateEntry(
+        wp_page_id=1,
+        wp_url="https://wp.test/x",
+        wp_featured_media_id=None,
+        content_hash="h",
+        gs1_link_set_hash="g",
+        last_run=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    save_state(State(client_id="acme", entries={GTIN_A: {"nl": entry, "fr": entry}}))
+    products = tmp_path / "products.json"
+    _write_products(products, [_product(GTIN_A, product_name={"nl": "Rugsteun", "fr": "Dossier"})])
+
+    _patch_client(monkeypatch, cfg)
+    assert run_plan.main(["acme", "--products", str(products)]) == 0
+    assert _read_plan().rows == []
+
+    _patch_client(monkeypatch, translating)
+    assert run_plan.main(["acme", "--products", str(products)]) == 0
+    assert {row.gtin for row in _read_plan().rows} == {GTIN_A}

@@ -67,6 +67,7 @@ from typing import Final, NamedTuple
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from lib.config import ClientConfig, get_client
+from lib.copy_translation_run import translate_units
 from lib.data_dir import enter_data_dir
 from lib.env import load_env
 from lib.errors import ConfigError, GeneratorError, LLMAPIError, MissingCredentialError
@@ -479,11 +480,15 @@ def _no_pending_reason(  # noqa: PLR0913 — one set per reason it can give
 
 def _run_api_backend(
     cfg: ClientConfig,
-    requests: list[GenerationRequest],
-    prompt_version: str,
+    prepared: _Prepared,
+    context: GenerationContext,
     now: datetime,
-) -> tuple[int, str]:
-    """Write this run's results file via the Anthropic API backend. Returns (written, model).
+) -> tuple[int, str, list[tuple[str, str, str]]]:
+    """Write this run's results file via the Anthropic API backend.
+
+    Returns how many units were written, the model, and — under ``generator.translate_copy`` —
+    the translated units left without copy, with why. Those are written after the default
+    language: they translate its copy (:mod:`lib.copy_translation_run`).
 
     Raises:
         ConfigError: The client has no enabled ``generator`` block.
@@ -496,9 +501,15 @@ def _run_api_backend(
         raise ConfigError(
             f"--backend api requires an enabled `generator` block for {cfg.client_id!r}"
         )
-    voice = load_voice_template(cfg.client_id, prompt_version)
+    voice = load_voice_template(cfg.client_id, context.prompt_version)
+    not_written: list[tuple[str, str, str]] = []
     with AnthropicClient(gen, voice) as client:
-        items = run_producer(requests, client)
+        items = run_producer(prepared.requests, client)
+        if context.translate_copy:
+            written = ResultsFile(client_id=cfg.client_id, results=items)
+            run = translate_units(cfg, context, prepared.products, prepared.units, written, client)
+            items = [*items, *run.items]
+            not_written = run.not_written
     save_results(
         ResultsFile(
             client_id=cfg.client_id,
@@ -507,7 +518,7 @@ def _run_api_backend(
             results=items,
         )
     )
-    return len(items), gen.model
+    return len(items), gen.model, not_written
 
 
 def _compare_languages(cfg: ClientConfig, products_path: Path) -> str:
@@ -653,6 +664,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_version,
             cfg.export.gdsn_map,
             cfg.export.gdsn_extras,
+            translate_copy=cfg.generator.translate_copy if cfg.generator else False,
         )
         prepared = _prepare(
             cfg,
@@ -664,9 +676,14 @@ def main(argv: list[str] | None = None) -> int:
         requests, products = prepared.requests, prepared.products
 
         if args.backend == "api":
-            written, api_model = _run_api_backend(cfg, requests, prompt_version, now)
+            written, api_model, untranslated = _run_api_backend(cfg, prepared, context, now)
             results = load_results(cfg.client_id)
             compared = _compare_languages(cfg, products_path)
+        elif context.translate_copy:
+            raise ConfigError(
+                "generator.translate_copy translates the default language's copy, which only "
+                "the API backend does: run with --backend api"
+            )
         elif args.validate:
             override = Path(args.results) if args.results else None
             results = load_results(cfg.client_id, override)
@@ -696,6 +713,8 @@ def main(argv: list[str] | None = None) -> int:
     coverage = _coverage(products, results, context, prepared)
     if args.backend == "api":
         print(f"generated {written} via API ({api_model}); {coverage}", file=sys.stderr)
+        for gtin, language, reason in untranslated:
+            print(f"NOT translated {gtin}/{language}: {reason}", file=sys.stderr)
         print(compared, file=sys.stderr)
     elif args.validate:
         extra = f", {checked.surplus} surplus (not needed this run)" if checked.surplus else ""

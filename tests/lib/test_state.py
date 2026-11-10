@@ -1575,3 +1575,48 @@ def test_classify_units_missing_patterns_raises() -> None:
             ["nl"],
             _wp(slug_pattern=None),
         )
+
+
+# --- generator.translate_copy: copy out of date --------------------------------------------
+
+
+def test_an_unchanged_page_with_out_of_date_copy_is_rewritten_with_it() -> None:
+    """The translate_copy switch: nothing in GS1 changed, the copy is still the change."""
+    fed = _product()
+    product = _product(generated_tagline=LocalisedText(values={"nl": "Vertaald"}))
+
+    rows, _ = diff_against_state(
+        [product],
+        _live(fed),
+        ["nl"],
+        _wp(),
+        require_generated_copy=True,
+        hash_source={product.gtin: fed},
+        copy_due={(product.gtin, "nl")},
+        copy_bases={product.gtin: "basis"},
+    )
+
+    assert [(r.classification, r.diff, r.copy_basis) for r in rows] == [
+        (PlanClassification.CHANGED, {"copy": ("out of date", "rewritten")}, "basis")
+    ]
+
+
+def test_out_of_date_copy_with_no_new_copy_leaves_the_page_alone() -> None:
+    """A translation that failed must not turn into a page rewrite with nothing new on it."""
+    product = _product()
+
+    rows, skipped = diff_against_state(
+        [product],
+        _live(product),
+        ["nl"],
+        _wp(),
+        require_generated_copy=True,
+        hash_source={product.gtin: product},
+        copy_due={(product.gtin, "nl")},
+        copy_bases={product.gtin: "basis"},
+    )
+
+    assert [(r.classification, r.copy_basis) for r in rows] == [
+        (PlanClassification.UNCHANGED, None)
+    ]
+    assert skipped == []

@@ -1485,3 +1485,43 @@ def test_client_files_in_a_clone_warn_when_the_packed_copy_differs(tmp_path: Pat
     assert result.status is Status.WARN
     assert "input/acme/prompts/generation.v1.md" in result.detail
     assert "input/acme/templates/product.fr.html" in result.detail
+
+
+def test_units_needing_copy_includes_a_live_page_whose_copy_is_out_of_date(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """translate_copy: an unchanged French page written before the setting needs a translation."""
+    monkeypatch.chdir(tmp_path)
+    wordpress = _make_config().wordpress.model_copy(update={"languages": ["nl", "fr"]})
+    plain = _make_config(wordpress=wordpress, generator=GeneratorConfig(enabled=True))
+    translating = _make_config(
+        wordpress=wordpress, generator=GeneratorConfig(enabled=True, translate_copy=True)
+    )
+    product = ProductRecord(
+        gtin=GTIN_A,
+        brand="Acme",
+        product_name=LocalisedText(values={"nl": "Rugsteun", "fr": "Support"}),
+    )
+    rows, _ = diff_against_state(
+        [product], State(client_id="acme", entries={}), ["nl", "fr"], wordpress
+    )
+    entries = {
+        row.language: StateEntry(
+            wp_page_id=1,
+            wp_url=row.target_url,
+            wp_featured_media_id=None,
+            content_hash=row.content_hash,
+            gs1_link_set_hash="g" * 64,
+            last_run=datetime(2026, 11, 1, tzinfo=UTC),
+            title=row.title,
+        )
+        for row in rows
+    }
+    save_state(State(client_id="acme", entries={GTIN_A: entries}))
+
+    assert units_needing_copy(plain, [product]) == set()
+    assert units_needing_copy(translating, [product]) == {(GTIN_A, "fr")}
+    # Not yet translated: it keeps its text this run, so the doctor warns rather than fails.
+    result = check_generation_results(translating, [product])
+    assert result.status is Status.WARN
+    assert "1 live page(s) whose copy is out of date" in result.detail

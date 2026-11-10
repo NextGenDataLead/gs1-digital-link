@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **French copy can be the Dutch copy, translated: `generator.translate_copy`.** On, the copy is
+  written in the default language only, and every other language's tagline and Eigenschappen are
+  its translation, line for line — so the pages say the same thing. Another language's GS1 text
+  then rewrites nothing; it is still compared in §4e, and §4c says why a short one no longer
+  shortens a page. Each page records what its copy was written from (`copy_basis` in the ledger):
+  a change to the default language's text rewrites every language, nothing else does. Turning it
+  on makes each live page in another language due one translation of the default-language page
+  **as it is live** (read with GETs), and leaves the default-language pages as they are. A
+  translation that fails, or comes back with a different number of lines, is named
+  (`NOT translated …`), leaves that page alone and is asked for again next run. API backend only:
+  `--emit`/`--validate` refuse. Off by default — nothing changes until a client sets it.
 - **The data-quality report compares the languages (§4e).** Every attribute the client fills in per
   language in MyGS1 — the title (3309/3297), the product variation (3332), the marketing text
   (1083), the feature/benefit lines (1067), the functional name (3301) and the description (3318) —

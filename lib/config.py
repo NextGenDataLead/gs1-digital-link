@@ -333,6 +333,11 @@ class GeneratorConfig(BaseModel):
     prompt_version: str = DEFAULT_PROMPT_VERSION
     api_key_env: str = "ANTHROPIC_API_KEY"
     max_tokens: int = Field(default=1024, ge=1)
+    #: Write copy in the default language only; every other language's copy is its translation.
+    #: Off, each language is written from its own GS1 text, which can make the pages of one
+    #: product say different things (Noviplast, 2026-11-10). On, a change to another language's
+    #: GS1 text no longer rewrites anything — it is only compared, in the report's §4e.
+    translate_copy: bool = False
 
 
 class MediaConfig(BaseModel):

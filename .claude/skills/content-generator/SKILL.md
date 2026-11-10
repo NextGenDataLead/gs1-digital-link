@@ -54,6 +54,11 @@ this repo is built around.
 
 ## Steps
 
+0. **Not for a client with `generator.translate_copy: true`.** Its non-default languages are
+   translations of the default language's copy, which only the API backend writes: `--emit` and
+   `--validate` refuse. Say so, and point to `run_generate {client} --backend api` (the shell's
+   Generate button) instead of writing copy here.
+
 1. **Resolve the client and ensure requests exist.** Determine `client_id` from the request; ask if
    ambiguous. If `output/{client}/data/generation_requests.json` is missing, run
    `python -m scripts.run_generate {client} --emit` first (parse the export via the
