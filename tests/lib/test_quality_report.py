@@ -194,7 +194,7 @@ def test_a_subsection_carries_its_parents_number_with_no_gap() -> None:
     """A dangling `3b.` under a `3.` with no `3a.` is the drift this report keeps being read for.
 
     One of the three tests that assert a number: whatever the MyGS1 section is numbered, its
-    subsections are that number with `a`, `b`, `c`, and nothing after.
+    subsections are that number with `a` to `e`, and nothing after.
     """
     md = _render(
         source_issues=[
@@ -212,6 +212,7 @@ def test_a_subsection_carries_its_parents_number_with_no_gap() -> None:
         f"### {number}b. Possible wrong-language values (worth a glance)",
         f"### {number}c. Marketing text much shorter in one language",
         f"### {number}d. Taken from a fallback attribute — fill the preferred one",
+        f"### {number}e. Languages that do not say the same",
     ]
 
 

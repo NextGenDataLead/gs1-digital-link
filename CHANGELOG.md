@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The data-quality report compares the languages (§4e).** Every attribute the client fills in per
+  language in MyGS1 — the title (3309/3297), the product variation (3332), the marketing text
+  (1083), the feature/benefit lines (1067), the functional name (3301) and the description (3318) —
+  is laid side by side, one column per language. A value **missing** in one language is read from
+  the export. **Says something else** and **another language** are judged by Claude through the API
+  backend and kept in `language_check.json`; a product is judged again only when its values
+  change, and a judgment about values the export no longer holds is never shown. Generating copy
+  with `--backend api` (the shell's Generate button) brings it up to date; `python -m
+  scripts.check_languages` runs it alone, and `--all` also judges live products that are no longer
+  on the product list. A failed comparison never fails the copy already written, and judgments
+  already made are kept when a run stops partway. On the pilot batch it found a French 1083 about human
+  hair on a pet brush, "désherbant" (weed killer) as the French name of three weed brushes, and
+  English or Dutch in eight French slots.
+
 ## [0.5.5] - 2026-11-05
 
 ### Added

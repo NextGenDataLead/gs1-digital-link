@@ -284,7 +284,7 @@ Read-only until the final step. This is the one workflow where working hands-on 
    ```
    Repeat until there are no warnings on required fields. `brand` and `product_name` are mandatory. Then drop `--dry-run` to write `products.json`.
 
-5. **Review data quality** — `python -m scripts.report_quality`. Fix what belongs in MyGS1 at the source. Blank or wrong source data must not be invented downstream.
+5. **Review data quality** — `python -m scripts.report_quality`. Fix what belongs in MyGS1 at the source. Blank or wrong source data must not be invented downstream. §4e compares the languages of every per-language attribute; with an API key, `python -m scripts.check_languages` (or generating the copy through the API) fills in its judgments — without one it shows only values missing in a language.
 
    Run `python -m scripts.doctor` here too, before you go near credentials. It will tell you how many products are actually in scope and what is removing the rest — the number an operator most needs and is least often given.
 

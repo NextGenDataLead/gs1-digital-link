@@ -101,6 +101,16 @@ Illustrative, at ~1.5k input and ~400 output tokens per unit on `claude-sonnet-5
 per-unit estimate above — `client.messages.count_tokens()` gives real numbers for your prompt and
 product data.
 
+### The language comparison — metered, and kept
+
+`run_generate --backend api` also compares each in-scope product's languages, value by value, for
+§4e of the data-quality report (`python -m scripts.check_languages` runs that step alone). It is
+**one call per product**, not per language, and a product is **not asked again** while its values
+are unchanged: the verdicts are kept in `language_check.json` beside a fingerprint of exactly the
+values judged. So a batch is paid for once; after that only products whose export values changed
+are sent. The 49-product pilot batch was 49 calls; at a few hundred tokens in and out each, that is
+roughly $0.20 on `claude-sonnet-5` — an estimate, not a measured bill.
+
 ### What keeps it low — and what does not
 
 - **Re-running re-pays, but only for what the re-run publishes.** There is no cache: copy is written
