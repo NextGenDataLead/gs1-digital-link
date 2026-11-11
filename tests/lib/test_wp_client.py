@@ -1348,6 +1348,29 @@ def test_network_error_retried_then_status_zero(httpx_mock: HTTPXMock) -> None:
     assert exc.value.call is not None  # a network error still knows what it was attempting
 
 
+def test_a_dropped_connection_on_a_read_is_retried(httpx_mock: HTTPXMock) -> None:
+    """2026-11-11: one dropped keep-alive connection crashed *Check the live site*."""
+    client, _ = make_client(httpx_mock)
+    httpx_mock.add_exception(
+        httpx.RemoteProtocolError("Server disconnected without sending a response."), url=SLUG_QS
+    )
+    httpx_mock.add_response(url=SLUG_QS, json=[])
+
+    assert client.find_by_slug(POST_TYPE, "p-1") is None
+
+
+def test_a_dropped_connection_on_a_write_is_not_repeated(httpx_mock: HTTPXMock) -> None:
+    """The page may have been created before the connection dropped: a second POST duplicates it."""
+    client, _ = make_client(httpx_mock, plugin="wpml", config=_wpml_config())
+    httpx_mock.add_response(method="GET", json=[])
+    httpx_mock.add_response(method="GET", json=[])
+    httpx_mock.add_exception(httpx.RemoteProtocolError("dropped"), method="POST")
+
+    with pytest.raises(httpx.RemoteProtocolError):
+        client.upsert_page(POST_TYPE, "p-1", "T", "", "fr", meta={"gtin": "1"})
+    assert len([r for r in _business_requests(httpx_mock) if r.method == "POST"]) == 1
+
+
 def test_media_403_names_the_upload_and_carries_the_html(
     httpx_mock: HTTPXMock, tmp_path: Path
 ) -> None:

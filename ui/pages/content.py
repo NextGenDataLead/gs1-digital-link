@@ -200,7 +200,7 @@ def _live_screen(  # noqa: PLR0913, PLR0915 — the three steps share one set of
         # copy just written stayed off screen until the operator left and came back.
         review.clear()
         with review:
-            _review(context.batch_scope(cid, cfg), results_path, languages)
+            _review(context.batch_scope(cid, cfg), results_path, languages, _kept_language(cfg))
 
     async def refresh() -> None:
         fetched = await runner.run_json_off_the_loop(runner.report_live_copy_argv(cid))
@@ -477,7 +477,24 @@ def _generate_panel(
     return sync
 
 
-def _review(scope: context.Scope | None, results_path: Path, languages: list[str]) -> None:
+def _kept_language(cfg: ClientConfig) -> str | None:
+    """The language whose live page keeps its text while the others are its translation.
+
+    Under ``generator.translate_copy`` a live default-language page is translated, not rewritten,
+    so the run writes no copy for it. Shown as a red "no copy" beside its translation, that read as
+    a failure (2026-11-11); it is what the switch is meant to do.
+    """
+    if cfg.generator is None or not cfg.generator.translate_copy:
+        return None
+    return cfg.wordpress.default_language
+
+
+def _review(
+    scope: context.Scope | None,
+    results_path: Path,
+    languages: list[str],
+    kept: str | None = None,
+) -> None:
     """The copy for *this run*, with anything written for another scope called out.
 
     Scope is not recomputed here. It arrives from the doctor's ``scope`` check, whose GTINs are
@@ -512,7 +529,7 @@ def _review(scope: context.Scope | None, results_path: Path, languages: list[str
     if not split.in_scope:
         ui.label("No text written for this batch yet.").classes("note")
         return
-    _entries(split.in_scope, languages, results_path)
+    _entries(split.in_scope, languages, results_path, kept)
 
     if split.missing:
         ui.label(
@@ -526,7 +543,9 @@ def _review(scope: context.Scope | None, results_path: Path, languages: list[str
         ).classes("note mono scroll-x mt-3")
 
 
-def _entries(entries: dict[str, Any], languages: list[str], results_path: Path) -> None:
+def _entries(
+    entries: dict[str, Any], languages: list[str], results_path: Path, kept: str | None = None
+) -> None:
     """Render the copy for each GTIN, one card per product, capped and counted.
 
     The tagline is ``usps[0]`` and the Eigenschappen bullets are the rest, which is the same
@@ -542,6 +561,13 @@ def _entries(entries: dict[str, Any], languages: list[str], results_path: Path) 
                     entry = per_language.get(language)
                     with ui.column().classes("gap-1 min-w-64 flex-1"):
                         ui.label(language.upper()).classes("figure-label")
+                        if entry is None and language == kept and per_language:
+                            ui.label("keeps the live text").classes("tag tag-na")
+                            ui.label(
+                                "Not rewritten. The other languages are translated from the text "
+                                "on this live page: compare them with that page."
+                            ).classes("note")
+                            continue
                         if entry is None:
                             ui.label("no copy").classes("tag tag-fail")
                             continue

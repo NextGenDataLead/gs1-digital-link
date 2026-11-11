@@ -95,6 +95,20 @@ _DEFAULT_TIMEOUT: Final = httpx.Timeout(connect=10.0, read=60.0, write=60.0, poo
 #: Sentinel status code used when an error originates below HTTP (network error).
 _NETWORK_ERROR_STATUS: Final = 0
 
+
+def _retried_on_read(method: str) -> tuple[type[httpx.TransportError], ...]:
+    """Transport errors worth retrying for a read only.
+
+    A server that drops a kept-alive connection answers ``RemoteProtocolError: Server
+    disconnected without sending a response`` (seen 2026-11-11 on *Check the live site*, which
+    reads every page in turn). For a GET the retry is harmless. For a write the request may have
+    landed before the connection dropped, so it is not repeated.
+    """
+    if method.upper() == "GET":
+        return (httpx.RemoteProtocolError, httpx.ReadError)
+    return ()
+
+
 # HTTP status ranges used in retry/verify classification (bounds exclusive on max).
 _HTTP_SUCCESS_MIN: Final = 200
 _HTTP_SUCCESS_MAX: Final = 300
@@ -1360,6 +1374,11 @@ class WordPressClient:
         endpoint = f"{method} {path}"
         attempts_429 = 0
         attempts_5xx = 0
+        retried: tuple[type[httpx.TransportError], ...] = (
+            httpx.ConnectError,
+            httpx.ReadTimeout,
+            *_retried_on_read(method),
+        )
 
         while True:
             headers = dict(self._auth_header())
@@ -1370,7 +1389,7 @@ class WordPressClient:
             started = time.monotonic()
             try:
                 resp = self._send(method, url, params, json_body, content, headers, files)
-            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+            except retried as exc:
                 attempts_5xx += 1
                 if attempts_5xx >= _RETRY_5XX_MAX_ATTEMPTS:
                     _log.error("WP %s (%s) network error, giving up: %r", endpoint, label, exc)
