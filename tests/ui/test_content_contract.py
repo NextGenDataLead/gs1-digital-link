@@ -231,3 +231,18 @@ def test_one_button_writes_both_halves_of_the_run() -> None:
     ]
     # `theme.action` builds every button on this screen: one to ask the site, one to write.
     assert len(buttons) == 2, f"expected two buttons on this screen; found {len(buttons)}"
+
+
+def test_a_default_page_kept_under_translate_copy_is_not_shown_as_missing() -> None:
+    """2026-11-11: the live Dutch page, translated and not rewritten, read as a red "no copy".
+
+    The review is told which language keeps its live text, and says so for it instead.
+    """
+    kept = _function("_kept_language")
+    entries = _function("_entries")
+    strings = {n.value for n in ast.walk(entries) if isinstance(n, ast.Constant)}
+
+    assert "_kept_language" in _calls(_tree())
+    assert "translate_copy" in ast.unparse(kept)
+    assert "default_language" in ast.unparse(kept)
+    assert "keeps the live text" in strings

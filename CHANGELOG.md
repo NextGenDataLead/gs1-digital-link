@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A dropped connection no longer stops *Check the live site*.** A server that closes a kept-alive
+  connection answers `Server disconnected without sending a response`; a read is now retried like
+  any other network error. A write is not repeated: the page may already have been created.
+- **The Content review no longer shows a live Dutch page as "no copy" under `translate_copy`.**
+  That page is translated, not rewritten; it now says *keeps the live text*.
+
 ## [0.6.0] - 2026-11-10
 
 ### Added
