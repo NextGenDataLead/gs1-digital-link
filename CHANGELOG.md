@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-11
+
 ### Fixed
 - **A dropped connection no longer stops *Check the live site*.** A server that closes a kept-alive
   connection answers `Server disconnected without sending a response`; a read is now retried like
@@ -165,7 +167,8 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.5...v0.6.0
 [0.5.3]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.1...v0.5.2
