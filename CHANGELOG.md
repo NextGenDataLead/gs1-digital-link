@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-17
+
+### Fixed
+- **Publish no longer lets a links-only plan run in `pages` or `both` mode.** The plan is kept
+  between walks, so a plan built for a links batch could still be on screen when the next batch
+  reached the plan review. It could be confirmed and dry-run, and the real run then stopped with
+  *Run failed (exit 2)*, having written nothing. The plan review now says why and offers only
+  *Build the plan*; the dry and real run buttons refuse it too.
+
 ## [0.6.1] - 2026-11-11
 
 ### Fixed
@@ -167,7 +176,8 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.5...v0.6.0
 [0.5.3]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.5.2...v0.5.3
