@@ -555,14 +555,14 @@ class _Flow:
                 "danger",
             )
 
-        # The plan and the mode can part company: the mode is chosen at gate 0 and can be changed
-        # after the plan was built. Said here because the run would be refused for it at the end.
-        if plan.links_only and self.session.mode is not Mode.LINKS:
-            theme.band(
-                "This plan was built for a links-only run, so it keeps products with no generated "
-                f"copy. It cannot run in {self.session.mode.value} mode — build the plan again.",
-                "warn",
-            )
+        # The plan and the mode can part company: `plan.json` outlives the walk that built it, so
+        # a links batch's plan is still there when the next batch arrives here. This used to be a
+        # warning above the usual answers, which could be clicked past — through the dry run and
+        # into a real run that `run_execute` then refused. Now the only way on is a rebuild.
+        refusal = self.session.plan_refusal(plan)
+        if refusal is not None:
+            theme.band(refusal, "danger")
+            return
 
         with theme.figures():
             for classification in PlanClassification:
@@ -952,6 +952,13 @@ class _Flow:
         plan = context.load_plan(self.cid)
         if plan is None:
             theme.notify_warning("No plan to confirm. Build one at the plan review gate.")
+            return None
+
+        # Checked again here, not only at the plan review: this is what every run — dry or real —
+        # reads, and the plan on disk can be replaced after that gate was answered.
+        refusal = self.session.plan_refusal(plan)
+        if refusal is not None:
+            theme.notify_problem(refusal)
             return None
 
         pairs = self.session.confirmed_pairs(plan)

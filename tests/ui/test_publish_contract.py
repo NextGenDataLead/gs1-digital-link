@@ -412,3 +412,19 @@ def test_gate_zero_confirms_the_mode_the_batch_was_saved_with() -> None:
     assert "context.batch_mode(cfg) is None" in text("render"), (
         "a batch with no mode must stop Publish, not default it"
     )
+
+
+def test_the_plan_review_and_the_confirmed_file_both_ask_the_plan_refusal() -> None:
+    """A links-only plan in a pages-writing mode used to get a warning that could be clicked past.
+
+    Both places must ask :meth:`PublishSession.plan_refusal`: the plan review, so the only way on
+    is a rebuild, and ``_write_confirmed``, which every dry and real run reads — the plan on disk
+    can change after the review was answered.
+    """
+    for name in ("_gate_plan_review", "_write_confirmed"):
+        calls = {
+            node.func.attr
+            for node in ast.walk(_named_function(name))
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        assert "plan_refusal" in calls, name

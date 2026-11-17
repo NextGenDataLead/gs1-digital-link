@@ -274,6 +274,27 @@ class PublishSession:
             return self.applied_rows.get((row.gtin, row.language), False)
         return True
 
+    def plan_refusal(self, plan: Plan) -> str | None:
+        """Why this plan cannot run in this session's mode, or ``None`` when it can.
+
+        One case today: a plan built with ``run_plan --links-only`` keeps products with no
+        generated copy, so ``run_execute`` refuses it (exit 2) in any mode that writes pages.
+        ``plan.json`` outlives the walk that built it, so a links batch's plan is still on disk
+        when the next batch — in ``both`` or ``pages`` — reaches the plan review. That plan's
+        counts look like any other's, and the shell used to let it be confirmed, dry-run and run,
+        and learn the answer only from the script's refusal at the very end.
+
+        Here, rather than on the screen, so a test can reach it without a browser — and so both
+        places that need it (the plan review, and the confirmed file the run reads) ask one rule.
+        """
+        if plan.links_only and self.mode is not Mode.LINKS:
+            return (
+                "This plan was built for a links-only run, so it keeps products with no "
+                f"generated copy. It cannot run in {self.mode.value} mode, which writes pages. "
+                "Build the plan again at the plan review — it will be built for this mode."
+            )
+        return None
+
     def confirmed_pairs(self, plan: Plan) -> list[list[str]]:
         """The ``confirmed_gtins_by_lang`` this session authorises, in plan order.
 
