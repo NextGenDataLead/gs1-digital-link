@@ -616,3 +616,27 @@ def test_folding_does_not_depend_on_which_gate_is_next() -> None:
     assert session.next_gate.id == "languages"
     assert not session.folds(BY_ID["row_diff"])
     assert session.folds(BY_ID["languages"])
+
+
+def _links_only_plan() -> Plan:
+    return _plan(_NEW).model_copy(update={"links_only": True})
+
+
+def test_a_links_only_plan_is_refused_in_every_mode_that_writes_pages() -> None:
+    """**The defect, as the consultant met it.** A links batch's ``plan.json`` was still on disk
+    when a ``both`` batch reached the plan review; the shell let it be confirmed and run, and
+    ``run_execute`` refused it with exit 2 at the very end."""
+    for mode in (Mode.BOTH, Mode.PAGES):
+        refusal = _session(mode=mode).plan_refusal(_links_only_plan())
+        assert refusal is not None, mode
+        assert mode.value in refusal
+
+
+def test_a_links_only_plan_runs_in_links_mode() -> None:
+    assert _session(mode=Mode.LINKS).plan_refusal(_links_only_plan()) is None
+
+
+def test_an_ordinary_plan_runs_in_every_mode() -> None:
+    """``run_execute`` accepts a full plan with ``--only links``, so the shell must too."""
+    for mode in Mode:
+        assert _session(mode=mode).plan_refusal(_FULL_PLAN) is None, mode
