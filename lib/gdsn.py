@@ -39,7 +39,13 @@ import openpyxl
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from lib.errors import ExportParseError
-from lib.records import ProductRecord, SourceIssue, _coerce_cell, build_product_record
+from lib.records import (
+    ProductImage,
+    ProductRecord,
+    SourceIssue,
+    _coerce_cell,
+    build_product_record,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -59,6 +65,7 @@ _LEAF_LANGUAGE: Final = "LanguageCode"
 _LEAF_UNIT: Final = "MeasurementUnitCode"
 _LEAF_URI: Final = "UniformResourceIdentifier"
 _LEAF_IS_PRIMARY: Final = "IsPrimaryFile"
+_LEAF_FILE_NAME: Final = "FileName"
 _FILE_GROUP_PREFIX: Final = "ReferencedFileHeader"
 _FILE_TYPE_SEGMENT: Final = "ReferencedFileTypeCode"
 _PRODUCT_IMAGE_TYPE: Final = "PRODUCT_IMAGE"
@@ -399,20 +406,49 @@ class GdsnSheet:
                 values.append(value)
         return values
 
+    def _file_groups(self) -> list[list[GdsnColumn]]:
+        """The columns of each ``ReferencedFileHeader[n]`` group, in sheet order."""
+        groups: dict[str, list[GdsnColumn]] = {}
+        for col in self.columns:
+            if col.path and col.path[0].startswith(_FILE_GROUP_PREFIX):
+                groups.setdefault(col.path[0], []).append(col)
+        return list(groups.values())
+
+    def product_images(self, gtin: str, market: str) -> list[ProductImage]:
+        """Every product picture this market lists for ``gtin``, in the sheet's slot order.
+
+        A file whose type is filled and is not ``PRODUCT_IMAGE`` (a PDF leaflet, a video) is left
+        out; a file with no type at all is kept, as :meth:`pick_primary_file` keeps it. The name
+        is the feed's file name, or the URI's last segment where that is blank, since the name is
+        what :mod:`lib.product_images` reads.
+        """
+        row = self.rows_by_key.get((gtin, market))
+        if row is None:
+            return []
+        images: list[ProductImage] = []
+        for cols in self._file_groups():
+            uri = self._leaf_cell(row, cols, _LEAF_URI)
+            if not uri:
+                continue
+            file_type = self._type_cell(row, cols)
+            if file_type and file_type != _PRODUCT_IMAGE_TYPE:
+                continue
+            name = self._leaf_cell(row, cols, _LEAF_FILE_NAME) or uri.rstrip("/").rsplit("/", 1)[-1]
+            flag = (self._leaf_cell(row, cols, _LEAF_IS_PRIMARY) or "").lower()
+            images.append(ProductImage(name=name, uri=uri, primary=flag in _TRUE_VALUES))
+        return images
+
     def pick_primary_file(self, gtin: str, market: str) -> str | None:
         """Return the URI of the primary product image, with graceful fallbacks."""
         row = self.rows_by_key.get((gtin, market))
         if row is None:
             return None
-        groups: dict[str, list[GdsnColumn]] = {}
-        for col in self.columns:
-            if col.path and col.path[0].startswith(_FILE_GROUP_PREFIX):
-                groups.setdefault(col.path[0], []).append(col)
+        groups = self._file_groups()
 
         primary_uris: list[str] = []
         image_uris: list[str] = []
         all_uris: list[str] = []
-        for cols in groups.values():
+        for cols in groups:
             uri = self._leaf_cell(row, cols, _LEAF_URI)
             if not uri:
                 continue
@@ -669,11 +705,43 @@ def build_records(  # noqa: PLR0913 — each argument is a distinct input; bundl
                     localised=acc.localised,
                     extras=acc.extras,
                     extras_localised=acc.extras_localised,
+                    images=_collect_images(ctx, gdsn_map, gtin),
                 )
             )
         except ExportParseError as exc:
             errors.append(str(exc))
     return BuildResult(records=records, warnings=warnings, errors=errors, issues=issues)
+
+
+def _collect_images(
+    ctx: _BuildContext, gdsn_map: dict[str, GdsnSource], gtin: str
+) -> list[ProductImage]:
+    """Every product picture across all markets, each once (operator, 2026-11-18).
+
+    Read from the sheet the ``image_url`` field is mapped to with ``primary_file``; a client whose
+    config maps no such field gets none, and its pages keep the single ``image_url`` picture.
+
+    **All markets, not the first that has any**: the Netherlands and Belgium sometimes list
+    different sets for one product, and the page shows them all. Markets are walked in priority
+    order, then slot order, and that is the order kept. A picture is the same picture when its
+    name matches without the extension — the German market lists ``08713195008127_C1C0`` for the
+    ``.tif`` the others list — and the first market's name and address are the ones kept. It is
+    primary when any market marks it so.
+    """
+    src = gdsn_map.get("image_url")
+    sheet = ctx.workbook.get(src.sheet) if src is not None and src.primary_file else None
+    if sheet is None:
+        return []
+    found: dict[str, ProductImage] = {}
+    for market in ctx.market_priority:
+        for image in sheet.product_images(gtin, market):
+            key = image.name.rsplit(".", 1)[0].casefold()
+            kept = found.get(key)
+            if kept is None:
+                found[key] = image
+            elif image.primary and not kept.primary:
+                found[key] = kept.model_copy(update={"primary": True})
+    return list(found.values())
 
 
 @dataclass(frozen=True)

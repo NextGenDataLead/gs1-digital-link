@@ -44,7 +44,15 @@ from lib.input_layout import archive_path
 from lib.issue_report import selection_issues
 from lib.link_set import link_set_hash
 from lib.provenance import history_path, read_run, record_upload
-from lib.records import LocalisedText, Plan, PlanClassification, PlanRow, ProductRecord, State
+from lib.records import (
+    LocalisedText,
+    Plan,
+    PlanClassification,
+    PlanRow,
+    ProductImage,
+    ProductRecord,
+    State,
+)
 from lib.run_files import (
     RESULT_NAME,
     SELECTION_NAME,
@@ -919,6 +927,114 @@ def test_missing_image_still_publishes(tmp_path: Path, monkeypatch: pytest.Monke
     assert kw["featured_media"] is None
     assert "product_header_image" not in kw["acf"]
     assert rec.verified  # the page was still created and verified (E7)
+
+
+def _pictures_row(*images: ProductImage) -> PlanRow:
+    row = _row(GTIN_A, "nl", image_url=images[0].uri if images else None)
+    return row.model_copy(
+        update={"product": row.product.model_copy(update={"images": list(images)})}
+    )
+
+
+def _pic(code: str, *, primary: bool = False) -> ProductImage:
+    name = f"{GTIN_A}_{code}.tif"
+    return ProductImage(name=name, uri=f"https://cdn/{name}", primary=primary)
+
+
+def _uploaded_id(rec: Any, image: ProductImage) -> int:
+    """The attachment id the fake gave the picture, found by the local file it was written to."""
+    stem = image.name.rsplit(".", 1)[0]
+    (hit,) = [u["id"] for u in rec.uploaded if u["path"].endswith(f"{stem}.jpg")]
+    return int(hit)
+
+
+def test_pictures_go_banner_primary_regular_unpacked_and_the_rest_to_the_gallery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The operator's rule (2026-11-18) — see lib.product_images for every case of it."""
+    monkeypatch.chdir(tmp_path)
+    rec = _install(monkeypatch, _media_config())
+    _fake_convert(monkeypatch)
+    packed, side, unpacked = _pic("C1C1", primary=True), _pic("C1L1"), _pic("C1C0")
+    plan = _write_json(tmp_path / "plan.json", _plan(_pictures_row(packed, side, unpacked)))
+
+    assert run_execute.main(["acme", "--plan", str(plan)]) == 0
+
+    acf = rec.wp[0]["acf"]
+    assert acf["product_header_image"] == _uploaded_id(rec, packed)
+    assert acf["product_regular_image"] == _uploaded_id(rec, unpacked)
+    assert acf["product_gallery"] == [
+        {"product_gallery_image": _uploaded_id(rec, packed)},
+        {"product_gallery_image": _uploaded_id(rec, side)},
+    ]
+    # The featured image is the one shown when the page is shared: the product itself.
+    assert rec.wp[0]["featured_media"] == _uploaded_id(rec, unpacked)
+    # Once each, though the banner picture is also in the gallery.
+    assert sorted(rec.downloaded) == sorted(i.uri for i in (packed, side, unpacked))
+
+
+def test_a_product_with_one_picture_clears_the_gallery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Replace, not add: the feed is the whole set, so an empty remainder is written as empty."""
+    monkeypatch.chdir(tmp_path)
+    rec = _install(monkeypatch, _media_config())
+    _fake_convert(monkeypatch)
+    only = _pic("A1N0", primary=True)
+    plan = _write_json(tmp_path / "plan.json", _plan(_pictures_row(only)))
+
+    assert run_execute.main(["acme", "--plan", str(plan)]) == 0
+
+    acf = rec.wp[0]["acf"]
+    assert acf["product_header_image"] == acf["product_regular_image"] == _uploaded_id(rec, only)
+    assert acf["product_gallery"] == []
+
+
+def test_a_record_without_a_picture_list_leaves_the_gallery_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A products.json parsed before pictures were collected: one picture, gallery untouched."""
+    monkeypatch.chdir(tmp_path)
+    rec = _install(monkeypatch, _media_config())
+    _fake_convert(monkeypatch)
+    plan = _write_json(tmp_path / "plan.json", _plan(_row(image_url="https://cdn/x.jpg")))
+
+    assert run_execute.main(["acme", "--plan", str(plan)]) == 0
+
+    assert "product_gallery" not in rec.wp[0]["acf"]
+
+
+def test_no_gallery_field_configured_writes_no_gallery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    rec = _install(monkeypatch, _media_config(gallery_field=None))
+    _fake_convert(monkeypatch)
+    plan = _write_json(
+        tmp_path / "plan.json", _plan(_pictures_row(_pic("C1C1", primary=True), _pic("C1C0")))
+    )
+
+    assert run_execute.main(["acme", "--plan", str(plan)]) == 0
+
+    assert "product_gallery" not in rec.wp[0]["acf"]
+
+
+def test_a_gallery_picture_that_will_not_download_is_left_out_and_the_page_publishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    rec = _install(monkeypatch, _media_config())
+    _fake_convert(monkeypatch)
+    unpacked, side = _pic("C1C0", primary=True), _pic("C1L1")
+    broken = ProductImage(name=f"{GTIN_A}_C1R1.tif", uri="MISSING")
+    plan = _write_json(tmp_path / "plan.json", _plan(_pictures_row(unpacked, broken, side)))
+
+    assert run_execute.main(["acme", "--plan", str(plan)]) == 0
+
+    assert rec.wp[0]["acf"]["product_gallery"] == [
+        {"product_gallery_image": _uploaded_id(rec, side)}
+    ]
+    assert rec.verified
 
 
 def test_video_set_on_correct_language_page(

@@ -463,7 +463,15 @@
         },
         "regular_image_field": {
           "type": "string",
-          "description": "ACF field name for the main image (usually the same hero attachment)."
+          "description": "ACF field name for the main image: the product out of its packaging where the feed has one."
+        },
+        "gallery_field": {
+          "type": ["string", "null"],
+          "description": "ACF repeater for the gallery. Every feed picture but the regular one, replaced on each write. null leaves the gallery alone."
+        },
+        "gallery_image_subfield": {
+          "type": "string",
+          "description": "The image subfield of each gallery row."
         },
         "video_file_field": {
           "type": "string",

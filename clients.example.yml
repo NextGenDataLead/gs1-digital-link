@@ -296,6 +296,8 @@ clients:
       image_quality: 85
       header_image_field: product_header_image
       regular_image_field: product_regular_image
+      gallery_field: product_gallery          # every other feed picture; replaced on each write
+      gallery_image_subfield: product_gallery_image
       video_file_field: product_header_video_file
       image_write_shape: id          # confirm the live write shape before trusting (page-adapter §3)
       video_transcode: true          # .mpg/.mpeg won't play in-browser -> ffmpeg to H.264 MP4

@@ -114,6 +114,7 @@ from lib.media_video import (
     prepare_video,
     video_gate,
 )
+from lib.product_images import PagePictures, choose
 from lib.provenance import history_path, record_run
 from lib.qr import render_qr
 from lib.records import (
@@ -121,6 +122,7 @@ from lib.records import (
     Plan,
     PlanClassification,
     PlanRow,
+    ProductImage,
     RunOutcome,
     State,
     StateEntry,
@@ -433,7 +435,7 @@ def _digital_link_url(cfg: ClientConfig, row: PlanRow) -> str:
 
 
 class _RowMedia(NamedTuple):
-    """The media a row contributes to its page: the hero image and this language's video.
+    """The media a row contributes to its page: its pictures and this language's video.
 
     ``created_ids`` holds only the attachments *this row* put on the site, and exists so a row
     that fails afterwards can take them back down. Deduped ids are deliberately absent: they
@@ -441,6 +443,7 @@ class _RowMedia(NamedTuple):
     """
 
     featured_media_id: int | None
+    #: The banner picture's ACF value — see :mod:`lib.product_images`.
     image_acf_value: int | str | None
     video_media_id: int | None
     created_ids: tuple[int, ...] = ()
@@ -450,6 +453,11 @@ class _RowMedia(NamedTuple):
     video_failed: str | None = None
     #: Whether to try it again once it is in its folder — see ``StateEntry.video_failed_retry``.
     video_failed_retry: bool | None = None
+    #: The picture beside the text: the product out of its packaging, where there is one.
+    regular_acf_value: int | str | None = None
+    #: The gallery rows to write, or ``None`` to leave the page's gallery alone. An empty list is
+    #: a write: the feed's set *replaces* the gallery, so a product down to one picture clears it.
+    gallery_acf_rows: list[dict[str, int | str]] | None = None
 
 
 _NO_MEDIA = _RowMedia(None, None, None)
@@ -492,41 +500,91 @@ def _row_media(cfg: ClientConfig, row: PlanRow, wp: WordPressClient) -> _RowMedi
     media = cfg.media
     if media is None:
         return _NO_MEDIA
-    hero = _hero_media_id(cfg.client_id, media, row, wp)
-    hero_id = hero.media_id if hero else None
-    image_value = _image_acf_value(media, hero_id, wp)
+    pictures = _page_pictures(row)
+    uploads: dict[str, MediaUpload | None] = {}
+
+    def upload(image: ProductImage | None) -> int | None:
+        # Once per picture per row: the banner and the regular picture are often the same file,
+        # and the gallery repeats the banner.
+        if image is None:
+            return None
+        if image.uri not in uploads:
+            uploads[image.uri] = _picture_upload(cfg.client_id, media, row, wp, image)
+        done = uploads[image.uri]
+        return done.media_id if done else None
+
+    header_id = upload(pictures.header)
+    regular_id = upload(pictures.regular)
+    gallery_ids = [mid for mid in (upload(image) for image in pictures.gallery) if mid is not None]
     video = _video_media_id(cfg.client_id, media, row, wp)
-    upload = video.upload
-    created = tuple(up.media_id for up in (hero, upload) if up is not None and up.created)
+    created = tuple(
+        up.media_id for up in (*uploads.values(), video.upload) if up is not None and up.created
+    )
     return _RowMedia(
-        hero_id,
-        image_value,
-        upload.media_id if upload else None,
+        regular_id if regular_id is not None else header_id,
+        _image_acf_value(media, header_id, wp),
+        video.upload.media_id if video.upload else None,
         created,
         video.file,
         video.failed,
         video.retry,
+        _image_acf_value(media, regular_id, wp),
+        _gallery_rows(media, gallery_ids, wp) if row.product.images else None,
     )
 
 
-def _hero_media_id(
-    client_id: str, media: MediaConfig, row: PlanRow, wp: WordPressClient
-) -> MediaUpload | None:
-    """Download the export image, convert it to web JPEG, and upload it; ``None`` on any failure."""
+def _page_pictures(row: PlanRow) -> PagePictures:
+    """Where this product's pictures go — or, for a record with no picture list, ``image_url``.
+
+    A record parsed before pictures were collected, or from a flat export, carries ``image_url``
+    alone; it goes in both places, as it always did, and the gallery is left as it is.
+    """
+    if row.product.images:
+        return choose(row.product.images)
     url = row.product.image_url
     if not url:
-        return None
-    data = wp.download_image(url)  # bytes | None (E7)
+        return PagePictures(None, None, ())
+    only = ProductImage(name=row.gtin, uri=url, primary=True)
+    return PagePictures(only, only, ())
+
+
+def _picture_upload(
+    client_id: str, media: MediaConfig, row: PlanRow, wp: WordPressClient, image: ProductImage
+) -> MediaUpload | None:
+    """Download one feed picture, convert it to web JPEG, and upload it; ``None`` on any failure.
+
+    The local file is named after the picture, so two pictures of one product never overwrite
+    each other. The upload is keyed on the barcode — the slug adds the content hash, so each
+    picture keeps its own attachment, and a renamed product finds the ones it already has (see
+    ``upload_media``).
+    """
+    data = wp.download_image(image.uri)  # bytes | None (E7)
     if data is None:
         return None
-    dest = Path("output") / client_id / "media" / "images" / f"{row.gtin}.jpg"
+    stem = image.name.rsplit(".", 1)[0]
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in stem) or row.gtin
+    name = row.gtin if safe == row.gtin else f"{row.gtin}-{safe}"
+    dest = Path("output") / client_id / "media" / "images" / f"{name}.jpg"
     jpeg = convert_image_for_web(
         data, dest, max_dim=media.image_max_dim, quality=media.image_quality
     )
     if jpeg is None:
         return None
-    # Keyed on the barcode, so a renamed product finds the image it already has (see upload_media).
     return wp.upload_media(jpeg, title=f"{row.title} ({row.gtin})", key=row.gtin)
+
+
+def _gallery_rows(
+    media: MediaConfig, media_ids: list[int], wp: WordPressClient
+) -> list[dict[str, int | str]] | None:
+    """The gallery repeater's rows, one per uploaded picture; ``None`` when the site has none."""
+    if media.gallery_field is None:
+        return None
+    rows: list[dict[str, int | str]] = []
+    for media_id in media_ids:
+        value = _image_acf_value(media, media_id, wp)
+        if value is not None:
+            rows.append({media.gallery_image_subfield: value})
+    return rows
 
 
 def _image_acf_value(
@@ -708,7 +766,10 @@ def _upsert_row(  # noqa: PLR0913 — one collaborator per step, plus the outcom
     if cfg.media is not None:
         if media.image_acf_value is not None:
             acf[cfg.media.header_image_field] = media.image_acf_value
-            acf[cfg.media.regular_image_field] = media.image_acf_value
+        if media.regular_acf_value is not None:
+            acf[cfg.media.regular_image_field] = media.regular_acf_value
+        if media.gallery_acf_rows is not None and cfg.media.gallery_field is not None:
+            acf[cfg.media.gallery_field] = media.gallery_acf_rows
         if media.video_media_id is not None:
             acf[cfg.media.video_file_field] = media.video_media_id
     # From here to the upsert returning, any failure leaves the attachments above referenced by
