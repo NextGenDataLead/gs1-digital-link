@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Every product picture in GS1 goes on the page.** Until now a page showed one picture, the
+  primary one, in both the banner and beside the text. Now the parse reads every picture the
+  export lists, from every market, each once, and:
+  - beside the text: the product **out of its packaging** (a `0` as the 19th character of the GS1
+    file name); of several, the primary one, else the first; with none, the primary, else the
+    first. It is also the featured image, the one shown when the page is shared;
+  - the banner: the primary picture, else the one beside the text;
+  - the gallery under the text: every other picture. It is **replaced** on each run, so a picture
+    removed in MyGS1 leaves the page too.
+
+  `media.gallery_field` (default `product_gallery`) names the gallery; `null` leaves it alone.
+  **To put them on live pages:** parse the export again (upload it on Data), so the products carry
+  their pictures; then a `pages` run with *Re-plan products that are already published* ticked at
+  the plan review. Every live product then plans as *changed* once and gets its pictures; its
+  text stays.
+
 ## [0.6.2] - 2026-11-17
 
 ### Fixed

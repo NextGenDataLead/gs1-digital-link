@@ -180,6 +180,8 @@ media:
   image_quality: 85
   header_image_field: "product_header_image"
   regular_image_field: "product_regular_image"
+  gallery_field: "product_gallery"          # null: leave the gallery alone
+  gallery_image_subfield: "product_gallery_image"
   video_file_field: "product_header_video_file"
   image_write_shape: id           # id | url
   video_transcode: false
@@ -207,6 +209,20 @@ Raise the site's upload limits anyway (`upload_max_filesize`, `post_max_size`).
 - `require_hero_image: true` instead holds a GTIN whose source `image_url` is blank out of the plan
   entirely, so a hero-less page can never publish (E22). A *runtime* fetch failure still degrades per
   E7.
+
+**Which picture goes where** (`lib/product_images.py`). The parse collects every product picture
+the feed references, from every market, each once (a name matching without its extension is the
+same picture). Then:
+
+| Place | Picture |
+|---|---|
+| `header_image_field` (the banner) | the primary picture, else the regular one |
+| `regular_image_field` (beside the text; also the featured image) | the product **out of its packaging** — `0` as the 19th character of the GS1 file name; of several, the primary, else the first; with none, the primary, else the first |
+| `gallery_field` | every other picture, in feed order — **replaced** on each write, so a picture removed in MyGS1 leaves the page too |
+
+A picture that will not download or decode is left out (E7) and the page still publishes. A
+`products.json` parsed before this existed carries `image_url` alone: it goes in the banner and
+beside the text, and the gallery is not touched.
 
 ### Videos
 

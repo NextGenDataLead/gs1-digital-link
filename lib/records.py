@@ -88,6 +88,22 @@ class LocalisedText(BaseModel):
         return self.values.get(lang, self.values.get(fallback) if fallback else None)
 
 
+class ProductImage(BaseModel):
+    """One product picture the feed references: its file name, where to fetch it, and its flag.
+
+    ``name`` is the feed's file name (GS1 attribute 2481), which carries the GS1 image naming
+    convention — the 19th character says whether the product is shown in its packaging (``1``)
+    or out of it (``0``). ``primary`` is the feed's *Is Primary File* (4277), true when any market
+    marks this file primary.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    uri: str
+    primary: bool = False
+
+
 class ProductRecord(BaseModel):
     """The canonical internal shape for one product (§2.1).
 
@@ -105,6 +121,11 @@ class ProductRecord(BaseModel):
     net_content: str | None = None
     image_url: str | None = None
     category: str | None = None
+    #: Every product picture the feed holds, across all markets, each once — see
+    #: :mod:`lib.product_images` for which goes where on the page. Empty on a flat export and on a
+    #: ``products.json`` written before this field existed; the page then falls back to
+    #: :attr:`image_url` alone, as it always did.
+    images: list[ProductImage] = Field(default_factory=list)
 
     description_short: LocalisedText | None = None
     description_long: LocalisedText | None = None
@@ -639,13 +660,14 @@ def parse_excel_row(
     )
 
 
-def build_product_record(
+def build_product_record(  # noqa: PLR0913 — each argument is one part of the record
     *,
     gtin: str | None,
     scalars: dict[str, str],
     localised: dict[str, dict[str, str]],
     extras: dict[str, str],
     extras_localised: dict[str, dict[str, str]] | None = None,
+    images: list[ProductImage] | None = None,
 ) -> ProductRecord:
     """Assemble a :class:`ProductRecord` from collected field values.
 
@@ -659,6 +681,8 @@ def build_product_record(
         extras: Free-form pass-through values, language-agnostic.
         extras_localised: Per-language pass-through values keyed by name then language code.
             Optional: the flat parser has no per-language extras to collect.
+        images: Every product picture, in page order — see :class:`ProductImage`. Optional: the
+            flat parser has none.
 
     Returns:
         The validated record.
@@ -679,6 +703,8 @@ def build_product_record(
     }
     if localised_extras:
         fields["extras_localised"] = localised_extras
+    if images:
+        fields["images"] = images
     try:
         return ProductRecord.model_validate(fields)
     except ValidationError as exc:

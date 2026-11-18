@@ -360,6 +360,11 @@ class MediaConfig(BaseModel):
     image_quality: int = Field(default=85, ge=1, le=100)
     header_image_field: str = "product_header_image"
     regular_image_field: str = "product_regular_image"
+    # The page's gallery: an ACF repeater of one image subfield. Every picture the feed holds but
+    # the regular one goes in it, and it is *replaced* on each write (see lib.product_images).
+    # ``null`` leaves the gallery alone — for a site whose pages have none.
+    gallery_field: str | None = "product_gallery"
+    gallery_image_subfield: str = "product_gallery_image"
     video_file_field: str = "product_header_video_file"
     image_write_shape: Literal["id", "url"] = "id"
     video_folders: dict[str, str] = Field(default_factory=dict)

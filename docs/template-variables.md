@@ -69,7 +69,7 @@ page — worse than an empty field.
 
 **Media is not in `acf_map`.** Images and video are written imperatively at execute time, because an
 attachment id only exists after upload. Their field *names* live under `media:` —
-`header_image_field`, `regular_image_field`, `video_file_field`. See
+`header_image_field`, `regular_image_field`, `gallery_field`, `video_file_field`. See
 [`wordpress-onboarding.md`](wordpress-onboarding.md#media).
 
 **Deterministic fields should stay deterministic.** Only map a `generated_*` field where copy genuinely
