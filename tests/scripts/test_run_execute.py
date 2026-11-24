@@ -51,6 +51,7 @@ from lib.records import (
     PlanRow,
     ProductImage,
     ProductRecord,
+    RunOutcome,
     State,
 )
 from lib.run_files import (
@@ -2858,3 +2859,33 @@ def test_translating_a_page_records_the_basis_on_the_default_page_left_as_it_is(
 
     entries = load_state("acme").entries[GTIN_A]
     assert (entries["nl"].copy_basis, entries["fr"].copy_basis) == ("basis-1", "basis-1")
+
+
+# --- A run stopped part-way keeps the record of what it wrote (v0.7.1) ------------------------
+
+
+def test_a_run_stopped_part_way_keeps_the_ledger_for_the_products_it_finished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The operator shell stopped a 98-row picture run at 30 minutes (2026-11-24). 49 pages were
+    live, and the ledger recorded none of them, because it was saved once, after the last row.
+
+    ``KeyboardInterrupt`` stands in for the kill: like a process being stopped, it passes every
+    ``except Exception`` in the run, so nothing after the stopped product runs.
+    """
+    monkeypatch.chdir(tmp_path)
+    _install(monkeypatch, _make_config())
+    real = run_execute._execute_gtin
+
+    def stopped_at_b(cfg: Any, gtin: str, *args: Any, **kwargs: Any) -> list[RunOutcome]:
+        if gtin == GTIN_B:
+            raise KeyboardInterrupt
+        return real(cfg, gtin, *args, **kwargs)
+
+    monkeypatch.setattr(run_execute, "_execute_gtin", stopped_at_b)
+    path = _write_json(tmp_path / "plan.json", _plan(_row(GTIN_A), _row(GTIN_B)))
+
+    with pytest.raises(KeyboardInterrupt):
+        run_execute.main(["acme", "--plan", str(path)])
+
+    assert set(load_state("acme").entries) == {GTIN_A}

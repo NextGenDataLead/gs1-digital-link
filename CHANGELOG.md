@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-24
+
+### Fixed
+- **A long publish run is no longer stopped after 30 minutes.** The operator shell gave every
+  command 30 minutes, then stopped it and reported the run as failed. The first run that put
+  every GS1 picture on the live pages takes longer than that (each picture is downloaded and
+  converted), so it was stopped halfway: 49 of its 98 pages written, the rest not, and the run
+  reported as *Run failed … (exit 1)*. The real run now has no time limit; its output on the
+  Publish screen shows it is still working. The dry run and the other commands keep the limit.
+- **The ledger is saved after every product**, not only at the end of a run. A run stopped
+  partway, for whatever reason, had written its pages, but the ledger recorded none of them, so
+  the next run planned them all again. Now everything finished before the stop is recorded.
+
 ## [0.7.0] - 2026-11-18
 
 ### Added
@@ -195,7 +208,8 @@ had:
 - **Installers** for macOS and Windows that need no Python (double-click, from the committed
   `uv.lock`), and a container image.
 
-[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/NextGenDataLead/gs1-digital-link/compare/v0.6.0...v0.6.1
