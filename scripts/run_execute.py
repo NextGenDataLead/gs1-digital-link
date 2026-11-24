@@ -1109,13 +1109,21 @@ def _execute(  # noqa: PLR0913 — one collaborator per step; bundling them only
     loop, and :class:`~lib.records.Plan` promises no such ordering. Outcomes therefore come
     out in completion order, which for any GTIN-grouped plan — every plan this tool writes —
     is also plan order.
+
+    **The ledger is saved after every GTIN**, not once at the end. A run that is stopped part-way
+    (the operator shell stopped a 98-row picture run at 30 minutes, 2026-11-24) has still written
+    every page before the stop, and a ledger saved only after the last row recorded none of them.
+    :func:`~lib.state.save_state` replaces the file atomically, so a stop at any moment leaves
+    either the previous ledger or the new one, never a partial file.
     """
     by_gtin: dict[str, list[PlanRow]] = {}
     for row in rows:
         by_gtin.setdefault(row.gtin, []).append(row)
 
     for gtin, gtin_rows in by_gtin.items():
-        yield from _execute_gtin(cfg, gtin, gtin_rows, wp, gs1, engine, state, ts, mode)
+        outcomes = _execute_gtin(cfg, gtin, gtin_rows, wp, gs1, engine, state, ts, mode)
+        save_state(state)
+        yield from outcomes
 
 
 def _render_qr_for(cfg: ClientConfig, row: PlanRow) -> list[Path]:

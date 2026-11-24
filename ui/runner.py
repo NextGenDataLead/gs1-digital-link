@@ -120,7 +120,7 @@ async def stream(
     argv: Sequence[str],
     on_line: Callable[[str], None],
     *,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    timeout: float | None = DEFAULT_TIMEOUT_SECONDS,
 ) -> CommandResult:
     """Run a CLI, calling ``on_line`` for each line as it arrives, and return the result.
 
@@ -130,6 +130,8 @@ async def stream(
 
     The child is killed if it outlives ``timeout``, and what it had already said is returned — a
     hung run that reports nothing is worse than a hung run that reports how far it got.
+    ``timeout=None`` sets no limit: the real publish run passes it, because stopping that one
+    half-way leaves pages written and the run reported as failed (v0.7.1).
     """
     process = await asyncio.create_subprocess_exec(
         sys.executable,

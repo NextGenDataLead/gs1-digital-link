@@ -906,7 +906,10 @@ class _Flow:
                     lines.append(line)
                     log.push(line)
 
-                result = await runner.stream(argv, keep)
+                # No time limit on the real run (v0.7.1). Stopping it half-way does not undo what
+                # it wrote: on 2026-11-24 the 30-minute default stopped a 98-row picture run with
+                # 49 pages live and the run reported as failed. The log above shows it is alive.
+                result = await runner.stream(argv, keep, timeout=None)
                 self.real_log = lines
                 # No second subprocess for the result sheet. `run_execute` writes it itself, on
                 # failure too. The dialog is built from this run's own log, not from the exit code

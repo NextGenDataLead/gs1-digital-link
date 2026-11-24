@@ -223,3 +223,22 @@ def test_the_complete_report_asks_for_complete_and_the_batch_one_does_not() -> N
     """Runs builds the complete report; Data builds the batch's. One flag apart."""
     assert runner.report_quality_argv("democlient", complete=True)[-1] == "--complete"
     assert "--complete" not in runner.report_quality_argv("democlient")
+
+
+def test_stream_with_no_timeout_lets_a_long_run_finish() -> None:
+    """A real publish is never stopped by the shell (v0.7.1): stopping one half-way left 49 pages
+    live and a run reported as failed. ``timeout=None`` means no limit at all."""
+    seen: list[str] = []
+    code = "import time\ntime.sleep(2)\nprint('finished', flush=True)"
+    result = asyncio.run(runner.stream(_inline(code), seen.append, timeout=None))
+
+    assert seen == ["finished"]
+    assert result.ok
+
+
+def test_the_real_publish_run_is_streamed_with_no_timeout() -> None:
+    """Pinned at the call site: the limit is a property of *this* call, not of ``stream``."""
+    source = (REPO_ROOT / "ui" / "pages" / "publish.py").read_text(encoding="utf-8")
+    assert "self.real_log = lines" in source
+    real_call = source.split("self.real_log = lines")[0].rsplit("runner.stream(", 1)[1]
+    assert "timeout=None" in real_call.split(")")[0]
